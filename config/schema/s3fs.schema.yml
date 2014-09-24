@@ -1,0 +1,110 @@
+# Schema for the configuration files of the S3 File System module.
+
+s3fs.settings:
+  type: mapping
+  label: 'S3 File System Settings'
+  mapping:
+
+    s3:
+      type: mapping
+      label: 'S3 config'
+      mapping:
+        bucket:
+          type: string
+          label: 'S3 Bucket'
+        keyprefix:
+          type: string
+          label: 'S3 Prefix'
+        region:
+          type: string
+          label: 'S3 Region'
+
+        force_https:
+          type: boolean
+          label: 'If True, always serve files from S3 via HTTPS'
+
+        custom_s3_host:
+          type: mapping
+          label: 'S3 config'
+          mapping:
+            enabled:
+              type:  boolean
+              label: 'Enable custom host name'
+            hostname:
+              type: string
+              label: 'The custom hostname'
+
+        custom_cdn:
+          type: mapping
+          label: 'Serve files from a custom domain by using an appropriately named bucket, e.g. "mybucket.mydomain.com".'
+          mapping:
+            enabled:
+              type:  boolean
+              label: 'Enable custom host name'
+            domain:
+              type: string
+              label: 'CDN Domain'
+            http_only:
+              type:  boolean
+              label: 'Use custom CDN on http only'
+
+
+        ignore_cache:
+          type: boolean
+          label: 'S3 Prefix'
+
+        refresh_prefix:
+          type: string
+          label: 'Partial Refresh Prefix'
+
+    presigned_urls:
+      type: sequence
+      label: 'A list of timeouts and paths that should be delivered through a presigned url.'
+      sequence:
+        - type: string
+
+    saveas:
+      type: sequence
+      label: 'A list of paths for which users will be forced to save the file, rather than displaying it in the browser.'
+      sequence:
+        - type: string
+
+    torrents:
+      type: sequence
+      label: 'A list of paths that should be delivered via BitTorrent.'
+      sequence:
+        - type: string
+
+    aws:
+      type: mapping
+      label: 'AWS Credentials'
+      mapping:
+        use_instance_profile:
+          type: boolean
+          label: 'If your Drupal site is running on an Amazon EC2 server, you may use the Instance Profile Credentials from that server rather than setting your AWS credentials directly.'
+        access_key:
+          type: string
+          label: 'Amazon Web Services Access Key'
+        secret_key:
+          type: string
+          label: 'Amazon Web Services Secret Key'
+        default_cache_config:
+          type: path
+          label: 'The default cache location for your EC2 Instance Profile Credentials.'
+
+        proxy:
+          type: mapping
+          label: 'Proxt settings for connecting to AWS.'
+          mapping:
+            enabled:
+              type:  boolean
+              label: 'Enable custom host name'
+            host:
+              type: string
+              label: 'Proxy Host and Port'
+            timeout:
+              type:  integer
+              label: 'Response Timeout'
+            connect_timeout:
+              type:  integer
+              label: 'Connection Timeout'
