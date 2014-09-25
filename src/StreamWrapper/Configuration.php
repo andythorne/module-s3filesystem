@@ -48,11 +48,6 @@ class Configuration
     public $presignedURLs = array();
 
     /**
-     * @var string
-     */
-    public $environment;
-
-    /**
      * @var array
      */
     public $s3Config;
@@ -76,7 +71,6 @@ class Configuration
         $logger->debug('Building Stream Configuration');
 
         $this->s3Config    = $config->get('s3');
-        $this->environment = $this->s3Config['environment'];
         $this->domain      = $this->s3Config['custom_cdn']['enabled'] ? $this->s3Config['custom_cdn']['domain'] : null;
         $this->useHttps    = $this->s3Config['force_https'];
 

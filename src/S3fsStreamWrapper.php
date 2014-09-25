@@ -186,7 +186,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         $this->logger->debug("setUri($uri) called.");
         if(!strpos($uri, $this->config->s3Config['keyprefix']))
         {
-            $uri = str_replace('s3://', 's3://' . $this->config->s3Config['keyprefix'] . '/' . $this->config->environment . '/', $uri);
+            $uri = str_replace('s3://', 's3://' . $this->config->s3Config['keyprefix'] . '/', $uri);
         }
         $this->uri = $uri;
     }
@@ -227,7 +227,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         $path_parts = explode('/', $s3_filename);
         if($path_parts[0] == 'styles')
         {
-            if(!$this->getObjectMetadata($this->uri) && !$this->getObjectMetadata(str_replace($this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/', '', $this->uri)))
+            if(!$this->getObjectMetadata($this->uri) && !$this->getObjectMetadata(str_replace($this->config->s3Config['keyprefix'] . '/', '', $this->uri)))
             {
                 return url($this->getDirectoryPath() . '/' . implode('/', $path_parts), array('absolute' => true));
             }
@@ -277,11 +277,11 @@ class S3fsStreamWrapper implements StreamWrapperInterface
             $url = "{$this->config->domain}/{$s3_filename}";
             if(strpos($url, '/' . $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') !== false)
             {
-                $url = str_replace('/styles/', '/' . $this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/styles/', $url);
+                $url = str_replace('/styles/', '/' . $this->config->s3Config['keyprefix'] . '/styles/', $url);
             }
             else if(strpos($url, '/' . $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') === false)
             {
-                $url = str_replace($this->config->domain . '/', $this->config->domain . '/' . $this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/', $url);
+                $url = str_replace($this->config->domain . '/', $this->config->domain . '/' . $this->config->s3Config['keyprefix'] . '/', $url);
             }
         }
         else
@@ -310,11 +310,11 @@ class S3fsStreamWrapper implements StreamWrapperInterface
             $url = $this->s3Client->getObjectUrl($this->config->s3Config['bucket'], $s3_filename, $expires, $url_settings['api_args']);
             if(strpos($url, $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') !== false)
             {
-                $url = str_replace('/styles/', '/' . $this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/styles/', $url);
+                $url = str_replace('/styles/', '/' . $this->config->s3Config['keyprefix'] . '/styles/', $url);
             }
             else if(strpos($url, $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') === false)
             {
-                $url = str_replace('amazonaws.com/', 'amazonaws.com/' . $this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/', $url);
+                $url = str_replace('amazonaws.com/', 'amazonaws.com/' . $this->config->s3Config['keyprefix'] . '/', $url);
             }
         }
 
@@ -1063,7 +1063,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         $filename = str_replace('s3://', '', $uri);
         if(strpos($filename, $this->config->s3Config['keyprefix']) === false)
         {
-            $filename = $this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/' . $filename;
+            $filename = $this->config->s3Config['keyprefix'] . '/' . $filename;
         }
 
         // Remove both leading and trailing /s. S3 filenames never start with /,
@@ -1081,7 +1081,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function uriToS3Filename2($uri)
     {
-        $filename = str_replace('s3://' . $this->config->s3Config['keyprefix'] . '/' . strtolower($this->config->environment) . '/', '', $uri);
+        $filename = str_replace('s3://' . $this->config->s3Config['keyprefix'] . '/', '', $uri);
         // Remove both leading and trailing /s. S3 filenames never start with /,
         // and a $uri for a folder might be specified with a trailing /, which
         // we'd need to remove to be able to retrieve it from the cache.
