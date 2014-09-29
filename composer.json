@@ -1,0 +1,16 @@
+{
+    "name": "ipc/s3fs-module",
+    "description": "AWS S3 Filesystem module for Drupal 8",
+    "type": "drupal-module",
+    "license": "GPL-2.0+",
+    "require": {
+        "php": ">=5.4.2",
+        "drupal/core": "~8.0",
+        "aws/aws-sdk-php": "~2.6.16"
+    },
+    "autoload": {
+        "psr-4": {
+            "Drupal\\s3fs": "src/"
+        }
+    }
+}

@@ -3,6 +3,7 @@
 namespace Drupal\s3fs\StreamWrapper;
 
 use Drupal\s3fs\Exception\S3fsException;
+use Psr\Log\LogLevel;
 
 
 /**
@@ -58,33 +59,68 @@ class Configuration
     public $configured = false;
 
     /**
+     * @return \Drupal\Core\Config\Config
+     */
+    public function getDefaultSettings()
+    {
+        return \Drupal::config('s3fs.settings');
+    }
+
+    /**
+     * @return bool
+     */
+    public function isRequestSecure()
+    {
+        $request = \Drupal::request();
+
+        return $request->isSecure();
+    }
+
+    /**
+     * @return string
+     */
+    public function getHttpHost()
+    {
+        $request = \Drupal::request();
+
+        return $request->getHttpHost();
+    }
+
+    /**
+     * @param mixed  $level
+     * @param string $message
+     * @param array  $context
+     */
+    public function log($level, $message, $context = array())
+    {
+        \Drupal::logger('s3fs')->log($level, $message, $context);
+    }
+
+    /**
      * Configure the configuration
      *
      * @throws S3fsException
      */
     public function configure()
     {
-        $config  = \Drupal::config('s3fs.settings');
-        $request = \Drupal::request();
-        $logger  = \Drupal::logger('s3fs');
+        $config = $this->getDefaultSettings();
+        $this->log(LogLevel::DEBUG, 'Building Stream Configuration');
 
-        $logger->debug('Building Stream Configuration');
-
-        $this->s3Config    = $config->get('s3');
-        $this->domain      = $this->s3Config['custom_cdn']['enabled'] ? $this->s3Config['custom_cdn']['domain'] : null;
-        $this->useHttps    = $this->s3Config['force_https'];
+        $this->s3Config = $config->get('s3');
+        $this->domain   = $this->s3Config['custom_cdn']['enabled'] ? $this->s3Config['custom_cdn']['domain'] : null;
+        $this->useHttps = $this->s3Config['force_https'];
 
         if(!$this->s3Config['bucket'])
         {
             $msg = t('Your AmazonS3 bucket name is not configured. Please visit the !settings_page.',
                 array('!settings_page' => l(t('Configuration Page'), '/admin/config/media/s3fs/settings')));
-            $logger->error($msg);
+            $this->log(LogLevel::ERROR, $msg);
             throw new S3fsException($msg);
         }
 
         // Always use HTTPS when the page is being served via HTTPS, to avoid
         // complaints from the browser about insecure content.
-        if($request->isSecure())
+        if($this->isRequestSecure())
         {
             // We change the config itself, rather than simply using $is_https in
             // the following if condition, because $this->s3Config['force_https'] gets
@@ -93,13 +129,13 @@ class Configuration
         }
 
         $scheme = $this->useHttps ? 'https' : 'http';
-        $logger->debug('Using ' . $scheme);
+        $this->log(LogLevel::DEBUG, 'Using ' . $scheme);
 
         // Custom CDN support for customizing S3 URLs.
         // If custom_cdn is not enabled or http_only is enabled and the protcol is https,
         // the file URLs do not use $this->domain.
         $customCDN = $this->s3Config['custom_cdn'];
-        if($customCDN['enabled'] && $customCDN['domain'] && (!$customCDN['http_only'] || ($customCDN['http_only'] && !$request->isSecure())))
+        if($customCDN['enabled'] && $customCDN['domain'] && (!$customCDN['http_only'] || ($customCDN['http_only'] && !$this->isRequestSecure())))
         {
             $domain = check_url($customCDN['domain']);
             if($domain)
@@ -107,7 +143,7 @@ class Configuration
                 // If domain is set to a root-relative path, add the hostname back in.
                 if(strpos($domain, '/') === 0)
                 {
-                    $domain = $request->getHttpHost() . $domain;
+                    $domain = $this->getHttpHost() . $domain;
                 }
                 $this->domain = "$scheme://$domain";
             }

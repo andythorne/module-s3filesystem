@@ -13,6 +13,7 @@ namespace Drupal\s3fs;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
 use Drupal\Core\Database\StatementInterface;
+use Drupal\Core\File\MimeType\MimeTypeGuesser;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\s3fs\AWS\S3\DrupalAdaptor;
 use Drupal\s3fs\Exception\AWS\S3\UploadFailedException;
@@ -26,6 +27,9 @@ use Guzzle\Service\Command\CommandInterface;
 use Guzzle\Stream\PhpStreamRequestFactory;
 use Guzzle\Stream\StreamInterface;
 use Psr\Log\LoggerInterface;
+use Psr\Log\LogLevel;
+use Psr\Log\NullLogger;
+use Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface;
 
 /**
  * The stream wrapper class.
@@ -91,6 +95,11 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     protected $logger;
 
     /**
+     * @var MimeTypeGuesser
+     */
+    protected $mimeGuesser;
+
+    /**
      * Stream wrapper constructor.
      *
      * Creates the Aws\S3\S3Client client object and activates the options
@@ -98,25 +107,64 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function __construct()
     {
-
-        $this->drupalAdaptor = \Drupal::service('s3fs.client');
-        $this->s3Client      = $this->drupalAdaptor->getS3Client();
-        $this->logger        = \Drupal::logger('s3fs');
+        $drupalAdaptor = \Drupal::service('s3fs.client');
+        $s3Client      = $this->drupalAdaptor->getS3Client();
+        $logger        = \Drupal::logger('s3fs');
+        $mimeGuesser   = \Drupal::service('file.mime_type.guesser');
 
         $cache        = \Drupal::cache()->get('s3fs.stream_wrapper.configuration');
         $cachedConfig = $cache->data;
 
         if($cache->valid && $cachedConfig instanceof Configuration && $cachedConfig->configured)
         {
-            $this->config = $cachedConfig;
+            $config = $cachedConfig;
         }
         else
         {
-            $this->config = new Configuration();
-            $this->config->configure();
-            \Drupal::cache()->set('s3fs.stream_wrapper.configuration', $this->config, time() + 3600, array('s3fs'));
+            $config = new Configuration();
+            $config->configure();
+            \Drupal::cache()->set('s3fs.stream_wrapper.configuration', $config, time() + 3600, array('s3fs'));
         }
+
+        $this->setUp($drupalAdaptor, $s3Client, $config, $mimeGuesser, $logger);
     }
+
+    /**
+     * Setup the stream wrapper
+     *
+     * @param DrupalAdaptor            $drupalAdaptor
+     * @param S3Client                 $s3Client
+     * @param Configuration            $config
+     * @param MimeTypeGuesserInterface $mimeGuesser
+     * @param LoggerInterface          $logger
+     */
+    public function setUp(DrupalAdaptor $drupalAdaptor, S3Client $s3Client, Configuration $config, MimeTypeGuesserInterface $mimeGuesser, LoggerInterface $logger = null)
+    {
+        $this->drupalAdaptor = $drupalAdaptor;
+        $this->s3Client      = $s3Client;
+        $this->config        = $config;
+        $this->mimeGuesser   = $mimeGuesser;
+        $this->logger        = $logger;
+    }
+
+    /**
+     * @return S3Client
+     */
+    public function getS3Client()
+    {
+        return $this->s3Client;
+    }
+
+    protected function log($message, $level = LogLevel::DEBUG, $context = array())
+    {
+        if(!$this->logger instanceof LoggerInterface)
+        {
+            $this->logger = new NullLogger();
+        }
+
+        $this->logger->log($level, $message, $context);
+    }
+
 
     /**
      * Sets metadata on the stream.
@@ -150,7 +198,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_metadata($uri, $option, $value)
     {
-        $this->logger->debug("stream_metadata({$uri}, {$option}, {$value}) called");
+        $this->log("stream_metadata({$uri}, {$option}, {$value}) called");
 
         return true;
     }
@@ -167,13 +215,11 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      *   Returns a string representing the file's MIME type, or
      *   'application/octet-stream' if no type cna be determined.
      */
-    protected function getMimeType($uri, $mapping = null)
+    public function getMimeType($uri, $mapping = null)
     {
-        $this->logger->debug("getMimeType($uri, $mapping) called.");
+        $this->log("getMimeType($uri, $mapping) called.");
 
-        $mimeGuesser = \Drupal::service('file.mime_type.guesser');
-
-        return $mimeGuesser->guess($uri);
+        return $this->mimeGuesser->guess($uri);
     }
 
     /**
@@ -183,8 +229,8 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function setUri($uri)
     {
-        $this->logger->debug("setUri($uri) called.");
-        if(!strpos($uri, $this->config->s3Config['keyprefix']))
+        $this->log("setUri($uri) called.");
+        if(strlen($this->config->s3Config['keyprefix']) && strpos($uri, $this->config->s3Config['keyprefix']) === false)
         {
             $uri = str_replace('s3://', 's3://' . $this->config->s3Config['keyprefix'] . '/', $uri);
         }
@@ -199,7 +245,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function getUri()
     {
-        $this->logger->debug("getUri() called for {$this->uri}.");
+        $this->log("getUri() called for {$this->uri}.");
 
         return $this->uri;
     }
@@ -215,7 +261,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function getExternalUrl()
     {
-        $this->logger->debug("getExternalUri() called for {$this->uri}.");
+        $this->log("getExternalUri() called for {$this->uri}.");
 
         $s3_filename = $this->uriToS3Filename2($this->uri);
 
@@ -272,16 +318,17 @@ class S3fsStreamWrapper implements StreamWrapperInterface
             }
         }
 
-        if($this->config->s3Config['custom_cdn'])
+        $keyPrefix = $this->config->s3Config['keyprefix'] ? trim($this->config->s3Config['keyprefix'], '/') . '/' : '';
+        if($this->config->s3Config['custom_cdn']['enabled'])
         {
             $url = "{$this->config->domain}/{$s3_filename}";
-            if(strpos($url, '/' . $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') !== false)
+            if(strpos($url, '/' . $keyPrefix) === false && strpos($url, '/styles/') !== false)
             {
-                $url = str_replace('/styles/', '/' . $this->config->s3Config['keyprefix'] . '/styles/', $url);
+                $url = str_replace('/styles/', '/' . $keyPrefix . 'styles/', $url);
             }
-            else if(strpos($url, '/' . $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') === false)
+            else if(strpos($url, '/' . $keyPrefix) === false && strpos($url, '/styles/') === false)
             {
-                $url = str_replace($this->config->domain . '/', $this->config->domain . '/' . $this->config->s3Config['keyprefix'] . '/', $url);
+                $url = str_replace($this->config->domain . '/', $this->config->domain . '/' . $keyPrefix, $url);
             }
         }
         else
@@ -308,13 +355,13 @@ class S3fsStreamWrapper implements StreamWrapperInterface
                 }
             }
             $url = $this->s3Client->getObjectUrl($this->config->s3Config['bucket'], $s3_filename, $expires, $url_settings['api_args']);
-            if(strpos($url, $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') !== false)
+            if(strpos($url, $keyPrefix) === false && strpos($url, '/styles/') !== false)
             {
-                $url = str_replace('/styles/', '/' . $this->config->s3Config['keyprefix'] . '/styles/', $url);
+                $url = str_replace('/styles/', '/' . $keyPrefix . 'styles/', $url);
             }
-            else if(strpos($url, $this->config->s3Config['keyprefix']) === false && strpos($url, '/styles/') === false)
+            else if(strpos($url, $keyPrefix) === false && strpos($url, '/styles/') === false)
             {
-                $url = str_replace('amazonaws.com/', 'amazonaws.com/' . $this->config->s3Config['keyprefix'] . '/', $url);
+                $url = str_replace('amazonaws.com/', 'amazonaws.com/' . $keyPrefix, $url);
             }
         }
 
@@ -355,7 +402,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function getTarget($uri = null)
     {
-        $this->logger->debug("getTarget($uri) called.");
+        $this->log("getTarget($uri) called.");
 
         if(!isset($uri))
         {
@@ -376,7 +423,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function getDirectoryPath()
     {
-        $this->logger->debug("getDirectoryPath() called.");
+        $this->log("getDirectoryPath() called.");
 
         return 's3/files';
     }
@@ -396,7 +443,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     public function chmod($mode)
     {
         $octal_mode = decoct($mode);
-        $this->logger->debug("chmod($octal_mode) called. S3fsStreamWrapper does not support this function.");
+        $this->log("chmod($octal_mode) called. S3fsStreamWrapper does not support this function.");
 
         return true;
     }
@@ -409,7 +456,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function realpath()
     {
-        $this->logger->debug("realpath() called for {$this->uri}. S3fsStreamWrapper does not support this function.");
+        $this->log("realpath() called for {$this->uri}. S3fsStreamWrapper does not support this function.");
 
         return false;
     }
@@ -431,7 +478,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function dirname($uri = null)
     {
-        $this->logger->debug("dirname($uri) called.");
+        $this->log("dirname($uri) called.");
 
         if(!isset($uri))
         {
@@ -469,7 +516,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_open($uri, $mode, $options, &$opened_path)
     {
-        $this->logger->debug("stream_open($uri, $mode, $options, $opened_path) called.");
+        $this->log("stream_open($uri, $mode, $options, $opened_path) called.");
 
         try
         {
@@ -528,7 +575,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_close()
     {
-        $this->logger->debug("stream_close() called for {$this->params['Key']}.");
+        $this->log("stream_close() called for {$this->params['Key']}.");
 
         $this->body   = null;
         $this->params = null;
@@ -548,7 +595,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_lock($operation)
     {
-        $this->logger->debug("stream_lock($operation) called. S3fsStreamWrapper doesn't support this function.");
+        $this->log("stream_lock($operation) called. S3fsStreamWrapper doesn't support this function.");
 
         return false;
     }
@@ -566,7 +613,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_read($count)
     {
-        $this->logger->debug("stream_read($count) called for {$this->uri}.");
+        $this->log("stream_read($count) called for {$this->uri}.");
 
         return $this->body->read($count);
     }
@@ -585,7 +632,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     public function stream_write($data)
     {
         $bytes = strlen($data);
-        $this->logger->debug("stream_write() called with $bytes bytes of data for {$this->uri}.");
+        $this->log("stream_write() called with $bytes bytes of data for {$this->uri}.");
 
         return $this->body->write($data);
     }
@@ -600,7 +647,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_eof()
     {
-        $this->logger->debug("stream_eof() called for {$this->params['Key']}.");
+        $this->log("stream_eof() called for {$this->params['Key']}.");
 
         return $this->body->feof();
     }
@@ -620,7 +667,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_seek($offset, $whence)
     {
-        $this->logger->debug("stream_seek($offset, $whence) called.");
+        $this->log("stream_seek($offset, $whence) called.");
 
         return $this->body->seek($offset, $whence);
     }
@@ -636,7 +683,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_flush()
     {
-        $this->logger->debug("stream_flush() called for {$this->params['Key']}.");
+        $this->log("stream_flush() called for {$this->params['Key']}.");
 
         if($this->mode == 'r')
         {
@@ -684,7 +731,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_tell()
     {
-        $this->logger->debug("stream_tell() called.");
+        $this->log("stream_tell() called.");
 
         return $this->body->ftell();
     }
@@ -700,7 +747,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_stat()
     {
-        $this->logger->debug("stream_stat() called for {$this->params['Key']}.");
+        $this->log("stream_stat() called for {$this->params['Key']}.");
 
         $stat = fstat($this->body->getStream());
         // Add the size of the underlying stream if it is known.
@@ -722,7 +769,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_cast($cast_as)
     {
-        $this->logger->debug("stream_cast($cast_as) called.");
+        $this->log("stream_cast($cast_as) called.");
 
         return $this->body->getStream();
     }
@@ -743,7 +790,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function unlink($uri)
     {
-        $this->logger->debug("unlink($uri) called.");
+        $this->log("unlink($uri) called.");
 
         try
         {
@@ -779,7 +826,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function rename($from_uri, $to_uri)
     {
-        $this->logger->debug("rename($from_uri, $to_uri) called.");
+        $this->log("rename($from_uri, $to_uri) called.");
 
         try
         {
@@ -828,7 +875,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function mkdir($uri, $mode, $options)
     {
-        $this->logger->debug("mkdir($uri, $mode, $options) called.");
+        $this->log("mkdir($uri, $mode, $options) called.");
 
         clearstatcache(true, $uri);
         // If this URI already exists in the cache, return TRUE if it's a folder
@@ -874,7 +921,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function rmdir($uri, $options)
     {
-        $this->logger->debug("rmdir($uri, $options) called.");
+        $this->log("rmdir($uri, $options) called.");
 
 
         try
@@ -942,7 +989,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function url_stat($uri, $flags)
     {
-        $this->logger->debug("url_stat($uri, $flags) called.");
+        $this->log("url_stat($uri, $flags) called.");
 
         return $this->stat($uri);
     }
@@ -963,7 +1010,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function dir_opendir($uri, $options = null)
     {
-        $this->logger->debug("dir_opendir($uri, $options) called.");
+        $this->log("dir_opendir($uri, $options) called.");
 
         if(!$this->isUriDir($uri))
         {
@@ -1010,7 +1057,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function dir_readdir()
     {
-        $this->logger->debug("dir_readdir() called.");
+        $this->log("dir_readdir() called.");
 
         $entry = each($this->dir);
 
@@ -1027,7 +1074,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function dir_rewinddir()
     {
-        $this->logger->debug("dir_rewinddir() called.");
+        $this->log("dir_rewinddir() called.");
 
         reset($this->dir);
 
@@ -1044,7 +1091,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function dir_closedir()
     {
-        $this->logger->debug("dir_closedir() called.");
+        $this->log("dir_closedir() called.");
 
         unset($this->dir);
 
@@ -1063,7 +1110,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         $filename = str_replace('s3://', '', $uri);
         if(strpos($filename, $this->config->s3Config['keyprefix']) === false)
         {
-            $filename = $this->config->s3Config['keyprefix'] . '/' . $filename;
+            $filename = rtrim($this->config->s3Config['keyprefix'], '/') . '/' . $filename;
         }
 
         // Remove both leading and trailing /s. S3 filenames never start with /,
@@ -1101,7 +1148,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function stat($uri)
     {
-        $this->logger->debug("stat($uri) called.");
+        $this->log("stat($uri) called.");
 
         $metadata = $this->getObjectMetadata($uri);
         if($metadata)
@@ -1174,7 +1221,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function getObjectMetadata($uri)
     {
-        $this->logger->debug("getObjectMetadata($uri) called.");
+        $this->log("getObjectMetadata($uri) called.");
 
         try
         {
@@ -1219,7 +1266,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function readCache($uri)
     {
-        $this->logger->debug("readCache($uri) called.");
+        $this->log("readCache($uri) called.");
 
         $record = db_select('file_s3fs', 's')
             ->fields('s')
@@ -1247,7 +1294,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function writeCache($metadata)
     {
-        $this->logger->debug("writeCache({$metadata['uri']}) called.");
+        $this->log("writeCache({$metadata['uri']}) called.");
 
         db_merge('file_s3fs')
             ->key(array('uri' => $metadata['uri']))
@@ -1274,7 +1321,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function deleteCache($uri)
     {
-        $this->logger->debug("deleteCache($uri) called.");
+        $this->log("deleteCache($uri) called.");
 
         $delete_query = db_delete('file_s3fs');
         if(is_array($uri))
@@ -1357,7 +1404,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function openReadStream($params, &$errors)
     {
-        $this->logger->debug("openReadStream({$params['Key']}) called.");
+        $this->log("openReadStream({$params['Key']}) called.");
 
         // Create the command and serialize the request.
         $request = $this->getSignedRequest($this->s3Client->getCommand('GetObject', $params));
@@ -1388,7 +1435,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function openAppendStream($params, &$errors)
     {
-        $this->logger->debug("openAppendStream({$params['Key']}) called.");
+        $this->log("openAppendStream({$params['Key']}) called.");
 
         try
         {
@@ -1417,7 +1464,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function openWriteStream($params, &$errors)
     {
-        $this->logger->debug("openWriteStream({$params['Key']}) called.");
+        $this->log("openWriteStream({$params['Key']}) called.");
 
         $this->body = new EntityBody(fopen('php://temp', 'r+'));
     }
@@ -1431,7 +1478,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function getSignedRequest($command)
     {
-        $this->logger->debug("getSignedRequest() called.");
+        $this->log("getSignedRequest() called.");
 
         $request = $command->prepare();
         $request->dispatch('request.before_send', array('request' => $request));
@@ -1454,7 +1501,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     function getMetadataFromS3($uri)
     {
-        $this->logger->debug("getMetadataFromS3($uri) called.");
+        $this->log("getMetadataFromS3($uri) called.");
 
         $params = $this->getStreamParams($uri);
         // I wish we could call headObject(), rather than listObjects(), but
@@ -1485,7 +1532,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     protected function handleException(\Exception $e, $flags = null)
     {
-        $this->logger->debug('Error: ' . $e->getMessage());
+        $this->log('Error: ' . $e->getMessage());
 
         if($flags != STREAM_URL_STAT_QUIET)
         {
