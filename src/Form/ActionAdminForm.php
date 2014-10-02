@@ -55,7 +55,7 @@ class ActionAdminForm extends FormBase
                   This may take a while for buckets with many thousands of files. <br>
                   It should only be necessary to use this button if you've just installed S3 File System and you need to cache all the pre-existing files in your bucket,
                   or if you need to restore your metadata cache from scratch for some other reason.") . '</div>',
-            '#value'    => t('Refresh file metadata cache'),
+            '#value'    => $translator->translate('Refresh file metadata cache'),
             '#button_type' => 'primary',
         );
 

@@ -4,6 +4,3 @@ description: 'Adds an Amazon Simple Storage Service-based remote file system to 
 package: Media
 core: 8.x
 configure: s3fs.settings
-
-libraries:
-  - blagh

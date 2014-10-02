@@ -9,7 +9,9 @@
  * Implements hook_requirements().
  */
 function s3fs_requirements($phase) {
-  
+
+  $t = \drupal::translation();
+
   if ($phase != 'runtime') {
     return array();
   }
@@ -17,31 +19,31 @@ function s3fs_requirements($phase) {
   if (ini_get('allow_url_fopen')) {
     $requirements['s3fs_allow_url_fopen'] = array(
       'severity' => REQUIREMENT_OK,
-      'title' => t('allow_url_fopen'),
-      'value' => t('Enabled'),
+      'title' => $t->translate('allow_url_fopen'),
+      'value' => $t->translate('Enabled'),
     );
   }
   else {
     $requirements['s3fs_allow_url_fopen'] = array(
       'severity' => REQUIREMENT_ERROR,
-      'title' => t('allow_url_fopen'),
-      'value' => t('Disabled'),
-      'description' => t('The S3 File System module requires that the allow_url_fopen setting be turned on in php.ini.'),
+      'title' => $t->translate('allow_url_fopen'),
+      'value' => $t->translate('Disabled'),
+      'description' => $t->translate('The S3 File System module requires that the allow_url_fopen setting be turned on in php.ini.'),
     );
   }
   
   if (PHP_INT_SIZE === 8) {
     $requirements['s3fs_int64'] = array(
-      'title' => t('PHP architecture'),
-      'value' => t('64-bit'),
+      'title' => $t->translate('PHP architecture'),
+      'value' => $t->translate('64-bit'),
       'severity' => REQUIREMENT_OK,
     );
   }
   else {
     $requirements['s3fs_int64'] = array(
-      'title' => t('PHP architecture'),
-      'value' => t('32-bit'),
-      'description' => t('A 64-bit PHP installation is required in order to support files larger than 2GB.'),
+      'title' => $t->translate('PHP architecture'),
+      'value' => $t->translate('32-bit'),
+      'description' => $t->translate('A 64-bit PHP installation is required in order to support files larger than 2GB.'),
       'severity' => REQUIREMENT_WARNING,
     );
   }
@@ -50,10 +52,10 @@ function s3fs_requirements($phase) {
   // the user doesn't have Libraries, the error won't be reported correctly.
   if (!function_exists('libraries_detect')) {
     $requirements['s3fs_libraries'] = array(
-      'title' => t('Libraries module'),
-      'value' => t('Not installed.'),
-      'description' => t('S3 File System requires the Libraries module. Please install it from !here.',
-        array('!here' => l('here', 'http://www.drupal.org/project/libraries'))
+      'title' => $t->translate('Libraries module'),
+      'value' => $t->translate('Not installed.'),
+      'description' => $t->translate('S3 File System requires the Libraries module. Please install it from !here.',
+        array('!here' => new Link($t->translate('here'), Url::fromUri('http://www.drupal.org/project/libraries')))
       ),
       'severity' => REQUIREMENT_ERROR,
     );
@@ -65,16 +67,16 @@ function s3fs_requirements($phase) {
   $library = libraries_detect('awssdk2');
   if ($library && !empty($library['installed'])) {
     $requirements['s3fs_awssdk2'] = array(
-      'title' => t('AWS SDK for PHP 2'),
-      'value' => t('Installed @ v@version.', array('@version' => $library['version'])),
+      'title' => $t->translate('AWS SDK for PHP 2'),
+      'value' => $t->translate('Installed @ v@version.', array('@version' => $library['version'])),
       'severity' => REQUIREMENT_OK,
     );
   }
   else {
     $requirements['s3fs_awssdk2'] = array(
-      'title' => t('AWS SDK for PHP 2'),
-      'value' => t('The S3 File System module requires the AWS SDK for PHP 2 library.'),
-      'description' => t('The Libraries module reported the following error: !error_message<br>
+      'title' => $t->translate('AWS SDK for PHP 2'),
+      'value' => $t->translate('The S3 File System module requires the AWS SDK for PHP 2 library.'),
+      'description' => $t->translate('The Libraries module reported the following error: !error_message<br>
         Please check the installation instructions for S3 File System.', array('!error_message' => filter_xss($library['error message']))
       ),
       'severity' => REQUIREMENT_ERROR,
@@ -83,7 +85,7 @@ function s3fs_requirements($phase) {
   
   // Report the version number of S3 File System on the system status page.
   $requirements['s3fs_version'] = array(
-    'title' => t('S3 File System'),
+    'title' => $t->translate('S3 File System'),
     'value' => S3FS_VERSION,
     'severity' => REQUIREMENT_OK,
   );

@@ -2,6 +2,7 @@
 
 namespace Drupal\s3fs\StreamWrapper;
 
+use Drupal\Core\Link;
 use Drupal\s3fs\Exception\S3fsException;
 use Psr\Log\LogLevel;
 
@@ -110,10 +111,12 @@ class Configuration
         $this->domain   = $this->s3Config['custom_cdn']['enabled'] ? $this->s3Config['custom_cdn']['domain'] : null;
         $this->useHttps = $this->s3Config['force_https'];
 
+        $t = \Drupal::translation();
+
         if(!$this->s3Config['bucket'])
         {
-            $msg = t('Your AmazonS3 bucket name is not configured. Please visit the !settings_page.',
-                array('!settings_page' => l(t('Configuration Page'), '/admin/config/media/s3fs/settings')));
+            $msg = $t->translate('Your AmazonS3 bucket name is not configured. Please visit the !settings_page.',
+                array('!settings_page' => Link::createFromRoute($t->translate('Configuration Page'), '/admin/config/media/s3fs/settings') ));
             $this->log(LogLevel::ERROR, $msg);
             throw new S3fsException($msg);
         }
@@ -150,7 +153,7 @@ class Configuration
             else
             {
                 // Due to the config form's validation, this shouldn't ever happen.
-                throw new S3fsException(t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
+                throw new S3fsException($t->translate('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
             }
         }
 
