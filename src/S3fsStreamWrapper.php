@@ -108,7 +108,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     public function __construct()
     {
         $drupalAdaptor = \Drupal::service('s3fs.client');
-        $s3Client      = $this->drupalAdaptor->getS3Client();
+        $s3Client      = $drupalAdaptor->getS3Client();
         $logger        = \Drupal::logger('s3fs');
         $mimeGuesser   = \Drupal::service('file.mime_type.guesser');
 
