@@ -15,6 +15,7 @@ use Drupal\Core\Database\SchemaObjectExistsException;
  */
 class DrupalAdaptor
 {
+
     /**
      * @var S3Client
      */

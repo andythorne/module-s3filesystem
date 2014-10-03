@@ -17,6 +17,17 @@ use Drupal\s3fs\Exception\S3fsException;
  */
 class ClientFactory
 {
+    public static function t($string, array $args = array(), array $options = array())
+    {
+        $translator = \Drupal::translation();
+        return $translator->translate($string,$args, $options);
+    }
+
+    public static function l(Link $link)
+    {
+        $linker = \Drupal::linkGenerator();
+        return $linker->generateFromLink($link);
+    }
 
     public static function create(Config $s3fsConfig = null)
     {
@@ -33,24 +44,31 @@ class ClientFactory
         $secret_key           = $awsConfig['secret_key'];
         $default_cache_config = $awsConfig['default_cache_config'];
 
-        $translator = \Drupal::translation();
 
         if(!class_exists('Aws\S3\S3Client'))
         {
-            throw new S3fsException($translator->translate('Cannot load Aws\S3\S3Client class. Please ensure that the awssdk2 library is installed correctly.'));
+            throw new S3fsException(self::t('Cannot load Aws\S3\S3Client class. Please ensure that the awssdk2 library is installed correctly.'));
         }
         elseif(!$use_instance_profile && (!$secret_key || !$access_key))
         {
-            throw new S3fsException($translator->translate("Your AWS credentials have not been properly configured. Please set them on the S3 File System !settings_page",
-                    array('!settings_page' => Link::createFromRoute($translator->translate('Settings Page'), 's3fs.settings')))
+            throw new S3fsException(
+                self::t("Your AWS credentials have not been properly configured. Please set them on the S3 File System !settings_page",
+                    array(
+                        '!settings_page' => self::l(Link::createFromRoute(self::t('Settings Page'), 's3fs.settings'))
+                    )
+                )
             );
         }
         elseif($use_instance_profile && empty($default_cache_config))
         {
-            throw new s3fsException($translator->translate("Your AWS credentials have not been properly configured.
+            throw new s3fsException(
+                self::t("Your AWS credentials have not been properly configured.
         You are attempting to use instance profile credentials but you have not set a default cache location.
         Please set it on the !settings_page",
-                    array('!settings_page' => Link::createFromRoute($translator->translate('Settings Page'), 's3fs.actions')))
+                    array(
+                        '!settings_page' => self::l(Link::createFromRoute(self::t('Settings Page'), 's3fs.actions'))
+                    )
+                )
             );
         }
 

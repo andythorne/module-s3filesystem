@@ -5,6 +5,8 @@ namespace Drupal\s3fs\Form;
 use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\s3fs\AWS\S3\DrupalAdaptor;
+use Drupal\Core\Routing\LinkGeneratorTrait;
+use Drupal\Core\StringTranslation\StringTranslationTrait;
 
 /**
  * Class ActionAdminForm
@@ -16,6 +18,9 @@ use Drupal\s3fs\AWS\S3\DrupalAdaptor;
  */
 class ActionAdminForm extends FormBase
 {
+    use LinkGeneratorTrait;
+    use StringTranslationTrait;
+
     /**
      * Returns a unique string identifying the form.
      *
@@ -40,22 +45,21 @@ class ActionAdminForm extends FormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state)
     {
-        $translator = \Drupal::translation();
         $form['s3fs_refresh_cache'] = array(
             '#type'        => 'fieldset',
-            '#description' => $translator->translate("The file metadata cache keeps track of every file that S3 File System writes to (and deletes from) the S3 bucket,
+            '#description' => $this->t("The file metadata cache keeps track of every file that S3 File System writes to (and deletes from) the S3 bucket,
       so that queries for data about those files (checks for existence, filetype, etc.) don't have to hit S3.
       This speeds up many operations, most noticeably anything related to images and their derivatives."),
-            '#title'       => $translator->translate('File Metadata Cache'),
+            '#title'       => $this->t('File Metadata Cache'),
         );
 
         $form['s3fs_refresh_cache']['refresh'] = array(
             '#type'        => 'submit',
-            '#suffix'   => '<div class="refresh">' . $translator->translate("Query S3 for the metadata of <i><b>all</b></i> the files in your site's bucket, and saves it to the database.
+            '#suffix'   => '<div class="refresh">' . $this->t("Query S3 for the metadata of <i><b>all</b></i> the files in your site's bucket, and saves it to the database.
                   This may take a while for buckets with many thousands of files. <br>
                   It should only be necessary to use this button if you've just installed S3 File System and you need to cache all the pre-existing files in your bucket,
                   or if you need to restore your metadata cache from scratch for some other reason.") . '</div>',
-            '#value'    => $translator->translate('Refresh file metadata cache'),
+            '#value'    => $this->t('Refresh file metadata cache'),
             '#button_type' => 'primary',
         );
 
