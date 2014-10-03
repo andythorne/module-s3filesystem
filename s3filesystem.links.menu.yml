@@ -1,0 +1,11 @@
+s3filesystem.admin.settings:
+  title: 'File System (S3)'
+  parent: system.admin_config_media
+  description: 'Manage S3 File System'
+  route_name: s3filesystem.settings
+
+s3filesystem.admin.actions:
+  title: 'S3 Actions'
+  parent: s3filesystem.admin.settings
+  description: 'S3 File System Action'
+  route_name: s3filesystem.actions

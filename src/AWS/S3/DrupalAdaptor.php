@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3fs\AWS\S3;
+namespace Drupal\s3filesystem\AWS\S3;
 
 use Aws\S3\S3Client;
 use Drupal\Core\Database\SchemaObjectExistsException;
@@ -8,7 +8,7 @@ use Drupal\Core\Database\SchemaObjectExistsException;
 /**
  * Class DrupalAdaptor
  *
- * @package   Drupal\s3fs\AWS\S3
+ * @package   Drupal\s3filesystem\AWS\S3
  *
  * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
@@ -41,7 +41,7 @@ class DrupalAdaptor
      */
     public function refreshCache()
     {
-        $config = \Drupal::config('s3fs.settings');
+        $config = \Drupal::config('s3filesystem.settings');
 
         $s3Config = $config->get('s3');
 
@@ -62,7 +62,7 @@ class DrupalAdaptor
         // is constructed as each filename is written to the DB. After all the files
         // are written, the folder names are converted to metadata and written.
         $folders          = array();
-        $existing_folders = db_select('file_s3fs', 's')
+        $existing_folders = db_select('file_s3filesystem', 's')
             ->fields('s', array('uri'))
             ->condition('dir', 1, '=');
         // If a prefix is set, only select folders which start with it.
@@ -77,18 +77,18 @@ class DrupalAdaptor
 
         // Create the temp table, into which all the refreshed data will be written.
         // After the full refresh is complete, the temp table will be swapped in.
-        module_load_install('s3fs');
-        $schema = s3fs_schema();
+        module_load_install('s3filesystem');
+        $schema = s3filesystem_schema();
         try
         {
-            db_create_table('file_s3fs_temp', $schema['file_s3fs']);
+            db_create_table('file_s3filesystem_temp', $schema['file_s3filesystem']);
             // db_create_table() ignores the 'collation' option. >_<
-            db_query("ALTER TABLE {file_s3fs_temp} CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin");
+            db_query("ALTER TABLE {file_s3filesystem_temp} CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin");
         }
         catch(SchemaObjectExistsException $e)
         {
             // The table already exists, so truncate it.
-            db_truncate('file_s3fs_temp')->execute();
+            db_truncate('file_s3filesystem_temp')->execute();
         }
 
         // Set up an event listener to consume each page of results before the next
@@ -124,7 +124,7 @@ class DrupalAdaptor
         // write those folders to the temp table.
         if($folders)
         {
-            $insert_query = db_insert('file_s3fs_temp')
+            $insert_query = db_insert('file_s3filesystem_temp')
                 ->fields(array('uri', 'filesize', 'timestamp', 'dir', 'mode', 'uid'));
             foreach($folders as $folder_uri => $ph)
             {
@@ -139,7 +139,7 @@ class DrupalAdaptor
             // TODO: If this throws an integrity constraint violation, then the user's
             // S3 bucket has objects that represent folders using a different scheme
             // then the one we account for above. The best solution I can think of is
-            // to convert any "files" in file_s3fs_temp which match an entry in the
+            // to convert any "files" in file_s3filesystem_temp which match an entry in the
             // $folders array (which would have been added in $this->writeMetadata())
             // to directories.
             $insert_query->execute();
@@ -149,32 +149,32 @@ class DrupalAdaptor
         if(empty($s3Config['prefix']))
         {
             // If this isn't a partial reresh, we can do a full table swap.
-            db_rename_table('file_s3fs', 'file_s3fs_old');
-            db_rename_table('file_s3fs_temp', 'file_s3fs');
-            db_drop_table('file_s3fs_old');
+            db_rename_table('file_s3filesystem', 'file_s3filesystem_old');
+            db_rename_table('file_s3filesystem_temp', 'file_s3filesystem');
+            db_drop_table('file_s3filesystem_old');
         }
         else
         {
-            // This is a partial refresh, so we can't just replace the file_s3fs table.
+            // This is a partial refresh, so we can't just replace the file_s3filesystem table.
             // We wrap the whole thing in a transacation so that we can return the
             // database to its original state in case anything goes wrong.
             $transaction = db_transaction();
             try
             {
-                $rows_to_copy = db_select('file_s3fs_temp', 's')
+                $rows_to_copy = db_select('file_s3filesystem_temp', 's')
                     ->fields('s', array('uri', 'filesize', 'timestamp', 'dir', 'mode', 'uid'));
 
-                // Delete from file_s3fs only those rows which match the prefix.
-                $delete_query = db_delete('file_s3fs')
+                // Delete from file_s3filesystem only those rows which match the prefix.
+                $delete_query = db_delete('file_s3filesystem')
                     ->condition('uri', db_like("s3://{$s3Config['prefix']}") . '%', 'LIKE')
                     ->execute();
 
-                // Copy the contents of file_s3fs_temp (which all have the prefix) into
-                // file_s3fs (which was just cleared of all contents with the prefix).
-                db_insert('file_s3fs')
+                // Copy the contents of file_s3filesystem_temp (which all have the prefix) into
+                // file_s3filesystem (which was just cleared of all contents with the prefix).
+                db_insert('file_s3filesystem')
                     ->from($rows_to_copy)
                     ->execute();
-                db_drop_table('file_s3fs_temp');
+                db_drop_table('file_s3filesystem_temp');
             }
             catch(\Exception $e)
             {
@@ -212,7 +212,7 @@ class DrupalAdaptor
     {
         if($file_metadata_list)
         {
-            $insert_query = db_insert('file_s3fs_temp')
+            $insert_query = db_insert('file_s3filesystem_temp')
                 ->fields(array('uri', 'filesize', 'timestamp', 'dir', 'mode', 'uid'));
             foreach($file_metadata_list as $metadata)
             {

@@ -1,0 +1,17 @@
+parameters:
+  s3filesystem.aws_client.factory.class:  Drupal\s3filesystem\AWS\S3\ClientFactory
+  s3filesystem.aws_client.class:          AWS\S3\S3Client
+  s3filesystem.client.class:              Drupal\s3filesystem\AWS\S3\DrupalAdaptor
+
+services:
+  s3filesystem.aws_client.factory:
+    class:            %s3filesystem.aws_client.factory.class%
+  s3filesystem.aws_client:
+    class:            %s3filesystem.aws_client.class%
+    factory_service:  s3filesystem.aws_client.factory
+    factory_method:   create
+
+  s3filesystem.client:
+    class: %s3filesystem.client.class%
+    arguments:
+      - @s3filesystem.aws_client

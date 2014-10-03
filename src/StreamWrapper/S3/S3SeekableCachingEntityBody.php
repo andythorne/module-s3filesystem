@@ -1,22 +1,22 @@
 <?php
 
-namespace Drupal\s3fs;
+namespace Drupal\s3filesystem\StreamWrapper\S3;
 
 use Guzzle\Http\CachingEntityBody;
 
 /**
- * Class S3fsSeekableCachingEntityBody
- * @package Drupal\s3fs
+ * Class S3SeekableCachingEntityBody
+ * @package Drupal\s3filesystem\SteamWrapper\S3
  *
  * @author Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
  *
- * A replacement class for CachingEntityBody that serves better for s3fs.
+ * A replacement class for CachingEntityBody that serves better for s3filesystem.
  *
  * Any instantiation of this class must be wrapped in a check for its
  * existence, since it may not be defined under certain circumstances.
  */
-class S3fsSeekableCachingEntityBody extends CachingEntityBody
+class S3SeekableCachingEntityBody extends CachingEntityBody
 {
 
     /**

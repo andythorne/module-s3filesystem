@@ -8,19 +8,19 @@
  * using the "s3://" scheme.
  */
 
-namespace Drupal\s3fs;
+namespace Drupal\s3filesystem\StreamWrapper\S3;
 
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
 use Drupal\Core\Database\StatementInterface;
 use Drupal\Core\File\MimeType\MimeTypeGuesser;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
-use Drupal\s3fs\AWS\S3\DrupalAdaptor;
-use Drupal\s3fs\Exception\AWS\S3\UploadFailedException;
-use Drupal\s3fs\Exception\StreamWrapper\StreamModeInvalidReadWriteException;
-use Drupal\s3fs\Exception\StreamWrapper\StreamModeInvalidXModeException;
-use Drupal\s3fs\Exception\StreamWrapper\StreamModeNotSupportedException;
-use Drupal\s3fs\StreamWrapper\Configuration;
+use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
+use Drupal\s3filesystem\Exception\AWS\S3\UploadFailedException;
+use Drupal\s3filesystem\Exception\StreamWrapper\StreamModeInvalidReadWriteException;
+use Drupal\s3filesystem\Exception\StreamWrapper\StreamModeInvalidXModeException;
+use Drupal\s3filesystem\Exception\StreamWrapper\StreamModeNotSupportedException;
+use Drupal\s3filesystem\StreamWrapper\Configuration;
 use Guzzle\Http\EntityBody;
 use Guzzle\Http\Message\RequestInterface;
 use Guzzle\Service\Command\CommandInterface;
@@ -32,9 +32,16 @@ use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface;
 
 /**
+ * Class S3StreamWrapper
+ *
  * The stream wrapper class.
+ *
+ * @package   Drupal\s3filesystem\StreamWrapper\S3
+ *
+ * @author    Andy Thorne <andy.thorne@timeinc.com>
+ * @copyright Time Inc (UK) ${YEAR}
  */
-class S3fsStreamWrapper implements StreamWrapperInterface
+class S3StreamWrapper implements StreamWrapperInterface
 {
     /**
      * @var StreamInterface
@@ -107,12 +114,12 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function __construct()
     {
-        $drupalAdaptor = \Drupal::service('s3fs.client');
+        $drupalAdaptor = \Drupal::service('s3filesystem.client');
         $s3Client      = $drupalAdaptor->getS3Client();
-        $logger        = \Drupal::logger('s3fs');
+        $logger        = \Drupal::logger('s3filesystem');
         $mimeGuesser   = \Drupal::service('file.mime_type.guesser');
 
-        $cache        = \Drupal::cache()->get('s3fs.stream_wrapper.configuration');
+        $cache        = \Drupal::cache()->get('s3filesystem.stream_wrapper.configuration');
         $cachedConfig = $cache->data;
 
         if($cache->valid && $cachedConfig instanceof Configuration && $cachedConfig->configured)
@@ -123,7 +130,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         {
             $config = new Configuration();
             $config->configure();
-            \Drupal::cache()->set('s3fs.stream_wrapper.configuration', $config, time() + 3600, array('s3fs'));
+            \Drupal::cache()->set('s3filesystem.stream_wrapper.configuration', $config, time() + 3600, array('s3filesystem'));
         }
 
         $this->setUp($drupalAdaptor, $s3Client, $config, $mimeGuesser, $logger);
@@ -267,7 +274,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
 
         // Image styles support:
         // If an image derivative URL (e.g. styles/thumbnail/blah.jpg) is requested
-        // and the file doesn't exist, provide a URL to s3fs's special version of
+        // and the file doesn't exist, provide a URL to s3filesystem's special version of
         // image_style_deliver(), which will create the derivative when that URL
         // gets requested.
         $path_parts = explode('/', $s3_filename);
@@ -443,7 +450,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     public function chmod($mode)
     {
         $octal_mode = decoct($mode);
-        $this->log("chmod($octal_mode) called. S3fsStreamWrapper does not support this function.");
+        $this->log("chmod($octal_mode) called. S3StreamWrapper does not support this function.");
 
         return true;
     }
@@ -456,7 +463,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function realpath()
     {
-        $this->log("realpath() called for {$this->uri}. S3fsStreamWrapper does not support this function.");
+        $this->log("realpath() called for {$this->uri}. S3StreamWrapper does not support this function.");
 
         return false;
     }
@@ -595,7 +602,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      */
     public function stream_lock($operation)
     {
-        $this->log("stream_lock($operation) called. S3fsStreamWrapper doesn't support this function.");
+        $this->log("stream_lock($operation) called. S3StreamWrapper doesn't support this function.");
 
         return false;
     }
@@ -939,7 +946,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
             $slash_uri = $bare_uri . '/';
 
             // Check if the folder is empty.
-            $files = db_select('file_s3fs', 's')
+            $files = db_select('file_s3filesystem', 's')
                 ->fields('s')
                 ->condition('uri', db_like($slash_uri) . '%', 'LIKE')
                 ->execute()
@@ -979,7 +986,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
      *   A string containing the URI to get information about.
      * @param int    $flags
      *   A bit mask of STREAM_URL_STAT_LINK and STREAM_URL_STAT_QUIET.
-     *   S3fsStreamWrapper ignores this value.
+     *   S3StreamWrapper ignores this value.
      *
      * @return array
      *   An array with file status, or FALSE in case of an error - see fstat()
@@ -1032,7 +1039,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         $and = db_and();
         $and->condition('uri', db_like($slash_uri) . '%', 'LIKE');
         $and->condition('uri', db_like($slash_uri) . '%/%', 'NOT LIKE');
-        $child_uris = db_select('file_s3fs', 's')
+        $child_uris = db_select('file_s3filesystem', 's')
             ->fields('s', array('uri'))
             ->condition($and)
             ->execute()
@@ -1268,7 +1275,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     {
         $this->log("readCache($uri) called.");
 
-        $record = db_select('file_s3fs', 's')
+        $record = db_select('file_s3filesystem', 's')
             ->fields('s')
             ->condition('uri', $uri, '=')
             ->execute()
@@ -1296,7 +1303,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     {
         $this->log("writeCache({$metadata['uri']}) called.");
 
-        db_merge('file_s3fs')
+        db_merge('file_s3filesystem')
             ->key(array('uri' => $metadata['uri']))
             ->fields($metadata)
             ->execute();
@@ -1323,7 +1330,7 @@ class S3fsStreamWrapper implements StreamWrapperInterface
     {
         $this->log("deleteCache($uri) called.");
 
-        $delete_query = db_delete('file_s3fs');
+        $delete_query = db_delete('file_s3filesystem');
         if(is_array($uri))
         {
             // Build an OR condition to delete all the URIs in one query.
@@ -1416,9 +1423,9 @@ class S3fsStreamWrapper implements StreamWrapperInterface
         }
         $body = $factory->fromRequest($request, array(), array('stream_class' => 'Guzzle\Http\EntityBody'));
 
-        // Wrap the body in an S3fsSeekableCachingEntityBody, so that seeks can
+        // Wrap the body in an S3SeekableCachingEntityBody, so that seeks can
         // go to not-yet-read sections of the file.
-        $this->body = new S3fsSeekableCachingEntityBody($body);
+        $this->body = new S3SeekableCachingEntityBody($body);
 
         return true;
     }

@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Sets up the S3fsStreamWrapper class to be used as a Drupal file system.
+ * Sets up the S3FileSystemStreamWrapper class to be used as a Drupal file system.
  */
 use Drupal\Core\Link;
 use Drupal\Core\Routing\RouteMatchInterface;
@@ -10,21 +10,21 @@ use Drupal\Core\Routing\RouteMatchInterface;
 /**
  * The version number of the current release.
  */
-define('S3FS_VERSION', '8.x-alpha14');
+define('S3FILESYSTEM_VERSION', '8.0.x-beta1');
 
 
 /**
  * Implements hook_stream_wrappers().
  * @see hook_stream_wrappers()
  */
-function s3fs_stream_wrappers()
+function s3filesystem_stream_wrappers()
 {
     $translator = \Drupal::translation();
 
     return array(
         's3' => array(
             'name'        => 'S3 File System',
-            'class'       => 'Drupal\s3fs\S3fsStreamWrapper',
+            'class'       => 'Drupal\s3filesystem\StreamWrapper\S3\S3StreamWrapper',
             'description' => $translator->translate('Amazon Simple Storage Service'),
         ),
     );
@@ -40,25 +40,25 @@ function s3fs_stream_wrappers()
  *
  * @return string
  */
-function s3fs_help($route_name, RouteMatchInterface $route_match)
+function s3filesystem_help($route_name, RouteMatchInterface $route_match)
 {
     $translator = \Drupal::translation();
     $linker     = \Drupal::linkGenerator();
 
-    if($route_name == 's3fs.actions')
+    if($route_name == 's3filesystem.actions')
     {
         $msg = $translator->translate('To perform actions, visit the !link',
-            array('!link' => $linker->generateFromLink(Link::createFromRoute($translator->translate('actions page'), 's3fs.actions'))));
+            array('!link' => $linker->generateFromLink(Link::createFromRoute($translator->translate('actions page'), 's3filesystem.actions'))));
 
         return "<p>$msg</p>";
     }
-    elseif($route_name == 's3fs.settings')
+    elseif($route_name == 's3filesystem.settings')
     {
         $msg = $translator->translate('These are the actions that you can perform upon S3 File System.');
         $msg .= '<br>';
         $msg .= $translator->translate('To change your settings, visit the !link.',
             array(
-                '!link' => $linker->generateFromLink(Link::createFromRoute($translator->translate('settings page'), 's3fs.settings'))
+                '!link' => $linker->generateFromLink(Link::createFromRoute($translator->translate('settings page'), 's3filesystem.settings'))
             )
         );
 

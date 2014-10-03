@@ -1,34 +1,34 @@
 <?php
 
-namespace Drupal\S3fs\Tests\StreamWrapper;
+namespace Drupal\S3FileSystem\Tests\StreamWrapper;
 
 use Aws\S3\S3Client;
-use Drupal\s3fs\AWS\S3\DrupalAdaptor;
-use Drupal\s3fs\S3fsStreamWrapper;
+use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
+use Drupal\s3filesystem\S3FileSystemStreamWrapper;
 use Drupal\Tests\UnitTestCase;
 use Psr\Log\NullLogger;
 
 
 /**
- * Class S3fsStreamWrapperTest
+ * Class S3FileSystemStreamWrapperTest
  *
  * @author      Andy Thorne <andy.thorne@timeinc.com>
  * @copyright   Time Inc (UK) 2014
  *
- * @name        S3fs
+ * @name        S3FileSystem
  * @group       Ensure that the remote file system functionality provided by S3 File System works correctly.
  * @description S3 File System
  */
-class S3fsStreamWrapperTest extends UnitTestCase
+class S3FileSystemStreamWrapperTest extends UnitTestCase
 {
     /**
      * @param array $methods
      *
-     * @return S3fsStreamWrapper
+     * @return S3FileSystemStreamWrapper
      */
     protected function getWrapper(array $methods = null, \Closure $configClosure = null)
     {
-        $wrapper = $this->getMockBuilder('Drupal\s3fs\S3fsStreamWrapper')
+        $wrapper = $this->getMockBuilder('Drupal\s3filesystem\S3FileSystemStreamWrapper')
             ->disableOriginalConstructor()
             ->setMethods($methods)
             ->getMock();
@@ -36,7 +36,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
         $s3Client      = $this->getMockBuilder('Aws\S3\S3Client')->disableOriginalConstructor()->getMock();
         $drupalAdaptor = new DrupalAdaptor($s3Client);
 
-        $config = $this->getMockBuilder('Drupal\s3fs\StreamWrapper\Configuration')
+        $config = $this->getMockBuilder('Drupal\s3filesystem\StreamWrapper\Configuration')
             ->setMethods(array(
                 'log',
                 'getDefaultSettings',
@@ -46,7 +46,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
             ->getMock();
 
         $testConfig = array(
-            's3fs.settings' => array(
+            's3filesystem.settings' => array(
                 's3'  =>
                     array(
                         'bucket'         => 'test-bucket',
@@ -104,19 +104,19 @@ class S3fsStreamWrapperTest extends UnitTestCase
 
 
         $config->expects($this->once())
-            ->method('getDefaultSettings')->willReturn($settings->get('s3fs.settings'));
+            ->method('getDefaultSettings')->willReturn($settings->get('s3filesystem.settings'));
 
         $config->expects($this->atLeastOnce())
             ->method('isRequestSecure')->willReturn(true);
 
-        if($testConfig['s3fs.settings']['s3']['custom_host']['enabled'])
+        if($testConfig['s3filesystem.settings']['s3']['custom_host']['enabled'])
         {
             $config->expects($this->once())
                 ->method('getHttpHost')->willReturn('test.localhost');
 
         }
 
-        if(!$testConfig['s3fs.settings']['s3']['custom_cdn']['enabled'])
+        if(!$testConfig['s3filesystem.settings']['s3']['custom_cdn']['enabled'])
         {
             $s3Client->expects($this->any())
                 ->method('getObjectUrl')->willReturn('region.amazonaws.com/path/to/test.png');
@@ -125,7 +125,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
         $config->configure();
         $mimeTypeGuesser = $this->getMock('Drupal\Core\File\MimeType\MimeTypeGuesser');
 
-        /** @var $wrapper S3fsStreamWrapper */
+        /** @var $wrapper S3FileSystemStreamWrapper */
         $wrapper->setUp(
             $drupalAdaptor,
             $s3Client,
@@ -142,7 +142,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
         $prefix  = 'testprefix';
         $wrapper = $this->getWrapper(null, function (&$config) use ($prefix)
         {
-            $config['s3fs.settings']['s3']['keyprefix'] = $prefix;
+            $config['s3filesystem.settings']['s3']['keyprefix'] = $prefix;
         });
 
         $wrapper->setUri('s3://test.png');
@@ -153,7 +153,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
     {
         $wrapper = $this->getWrapper(null, function (&$config)
         {
-            $config['s3fs.settings']['s3']['keyprefix'] = null;
+            $config['s3filesystem.settings']['s3']['keyprefix'] = null;
         });
 
         $wrapper->setUri('s3://test.png');
@@ -164,7 +164,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
     {
         $wrapper = $this->getWrapper(null, function (&$config)
         {
-            $config['s3fs.settings']['s3']['custom_cdn']['enabled'] = true;
+            $config['s3filesystem.settings']['s3']['custom_cdn']['enabled'] = true;
         });
 
         $wrapper->setUri('s3://test.png');
@@ -185,7 +185,7 @@ class S3fsStreamWrapperTest extends UnitTestCase
     {
         $wrapper = $this->getWrapper(null, function (&$config)
         {
-            $config['s3fs.settings']['s3']['torrents'] = array(
+            $config['s3filesystem.settings']['s3']['torrents'] = array(
                 'torrent/'
             );
         });
@@ -199,11 +199,11 @@ class S3fsStreamWrapperTest extends UnitTestCase
     {
         $wrapper = $this->getWrapper(null, function (&$config)
         {
-            $config['s3fs.settings']['s3']['saveas'] = array(
+            $config['s3filesystem.settings']['s3']['saveas'] = array(
                 'saveas/'
             );
 
-            $config['s3fs.settings']['s3']['torrents'] = array(
+            $config['s3filesystem.settings']['s3']['torrents'] = array(
                 'torrent/'
             );
         });
@@ -217,11 +217,11 @@ class S3fsStreamWrapperTest extends UnitTestCase
     {
         $wrapper = $this->getWrapper(null, function (&$config)
         {
-            $config['s3fs.settings']['s3']['presigned_url'] = array(
+            $config['s3filesystem.settings']['s3']['presigned_url'] = array(
                 'presigned_url/'
             );
 
-            $config['s3fs.settings']['s3']['torrents'] = array(
+            $config['s3filesystem.settings']['s3']['torrents'] = array(
                 'torrent/'
             );
         });

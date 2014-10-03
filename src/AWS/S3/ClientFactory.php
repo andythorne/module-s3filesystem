@@ -1,16 +1,18 @@
 <?php
 
-namespace Drupal\s3fs\AWS\S3;
+namespace Drupal\s3filesystem\AWS\S3;
 
 use Aws\S3\S3Client;
 use Drupal\Core\Config\Config;
 use Drupal\Core\Link;
-use Drupal\s3fs\Exception\S3fsException;
+use Drupal\s3filesystem\Exception\AWS\S3\AwsClientNotFoundException;
+use Drupal\s3filesystem\Exception\AWS\S3\AwsCredentialsInvalidException;
+use Drupal\s3filesystem\Exception\S3FileSystemException;
 
 /**
  * Class ClientFactory
  *
- * @package   Drupal\s3fs\AWS\S3
+ * @package   Drupal\s3filesystem\AWS\S3
  *
  * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
@@ -29,15 +31,21 @@ class ClientFactory
         return $linker->generateFromLink($link);
     }
 
-    public static function create(Config $s3fsConfig = null)
+    public static function create(Config $s3filesystemConfig = null)
     {
-        if(!$s3fsConfig instanceof Config)
+        if(!$s3filesystemConfig instanceof Config)
         {
-            $s3fsConfig = \Drupal::config('s3fs.settings');
+            $s3filesystemConfig = \Drupal::config('s3filesystem.settings');
         }
 
-        $awsConfig = $s3fsConfig->get('aws');
-        $s3Config  = $s3fsConfig->get('s3');
+        $awsConfig = $s3filesystemConfig->get('aws');
+        $s3Config  = $s3filesystemConfig->get('s3');
+
+        // if there is no bucket, dont use the stream
+        if(!$s3Config['bucket'])
+        {
+            throw new S3FileSystemException();
+        }
 
         $use_instance_profile = $awsConfig['use_instance_profile'];
         $access_key           = $awsConfig['access_key'];
@@ -47,29 +55,15 @@ class ClientFactory
 
         if(!class_exists('Aws\S3\S3Client'))
         {
-            throw new S3fsException(self::t('Cannot load Aws\S3\S3Client class. Please ensure that the awssdk2 library is installed correctly.'));
+            throw new AwsClientNotFoundException();
         }
         elseif(!$use_instance_profile && (!$secret_key || !$access_key))
         {
-            throw new S3fsException(
-                self::t("Your AWS credentials have not been properly configured. Please set them on the S3 File System !settings_page",
-                    array(
-                        '!settings_page' => self::l(Link::createFromRoute(self::t('Settings Page'), 's3fs.settings'))
-                    )
-                )
-            );
+            throw new AwsCredentialsInvalidException("Secret and Access key must be set");
         }
         elseif($use_instance_profile && empty($default_cache_config))
         {
-            throw new s3fsException(
-                self::t("Your AWS credentials have not been properly configured.
-        You are attempting to use instance profile credentials but you have not set a default cache location.
-        Please set it on the !settings_page",
-                    array(
-                        '!settings_page' => self::l(Link::createFromRoute(self::t('Settings Page'), 's3fs.actions'))
-                    )
-                )
-            );
+            throw new AwsCredentialsInvalidException("You are attempting to use instance profile credentials but you have not set a default cache location.");
         }
 
         // Create and configure the S3Client object.

@@ -1,11 +1,17 @@
 <?php
 
-namespace Drupal\s3fs\Routing;
+namespace Drupal\s3filesystem\Routing;
 
 use Symfony\Component\Routing\Route;
 
 /**
+ * Class ImageStyleRoutes
  * Defines a route subscriber to register a url for serving image styles.
+ *
+ * @package   Drupal\s3filesystem\Routing
+ *
+ * @author    Andy Thorne <andy.thorne@timeinc.com>
+ * @copyright Time Inc (UK) ${YEAR}
  */
 class ImageStyleRoutes
 {
@@ -28,7 +34,7 @@ class ImageStyleRoutes
         $routes['image.style_s3'] = new Route(
             '/' . $directory_path . '/styles/{image_style}/{path}',
             array(
-                '_controller' => 'Drupal\s3fs\Controller\S3fsController::deliver',
+                '_controller' => 'Drupal\s3filesystem\Controller\S3FileSystemController::deliver',
             ),
             array(
                 '_access' => 'TRUE',

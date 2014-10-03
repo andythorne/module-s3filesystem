@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3fs\Controller;
+namespace Drupal\s3filesystem\Controller;
 
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Controller\ControllerBase;
@@ -13,14 +13,14 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 /**
- * Class AdminController
+ * Class S3FileSystemController
  *
  * @package   Controller
  *
  * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
  */
-class S3fsController extends ControllerBase
+class S3FileSystemController extends ControllerBase
 {
 
     /**
@@ -58,7 +58,7 @@ class S3fsController extends ControllerBase
     {
         return new static(
             $container->get('lock'),
-            $container->get('logger.factory')->get('s3fs')
+            $container->get('logger.factory')->get('s3filesystem')
         );
     }
 
@@ -70,7 +70,7 @@ class S3fsController extends ControllerBase
 
         $image_uri = "{$scheme}://{$s3Path}";
 
-        $row = db_select('{file_s3fs}', 'f')
+        $row = db_select('{file_s3filesystem}', 'f')
             ->fields('f', array('uri'))
             ->where('uri = ? AND dir = 0', array($image_uri))
             ->execute();

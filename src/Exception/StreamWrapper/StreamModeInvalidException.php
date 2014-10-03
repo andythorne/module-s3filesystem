@@ -1,9 +1,9 @@
 <?php
 
-namespace Drupal\s3fs\Exception\StreamWrapper;
+namespace Drupal\s3filesystem\Exception\StreamWrapper;
 
 /**
- * Class ModeNotSupportedException
+ * Class StreamModeInvalidException
  *
  * @author Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014

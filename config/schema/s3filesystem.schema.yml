@@ -1,6 +1,6 @@
 # Schema for the configuration files of the S3 File System module.
 
-s3fs.settings:
+s3filesystem.settings:
   type: mapping
   label: 'S3 File System Settings'
   mapping:

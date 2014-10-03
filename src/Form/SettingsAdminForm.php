@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3fs\Form;
+namespace Drupal\s3filesystem\Form;
 
 use Aws\S3\Exception\InvalidAccessKeyIdException;
 use Aws\S3\Exception\NoSuchBucketException;
@@ -13,13 +13,13 @@ use Drupal\Core\Routing\LinkGeneratorTrait;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\StringTranslation\TranslationManager;
 use Drupal\Core\Url;
-use Drupal\s3fs\AWS\S3\ClientFactory;
-use Drupal\s3fs\Exception\S3fsException;
+use Drupal\s3filesystem\AWS\S3\ClientFactory;
+use Drupal\s3filesystem\Exception\S3FileSystemException;
 
 /**
  * Class SettingsAdminForm
  *
- * @package   Drupal\s3fs\Form
+ * @package   Drupal\s3filesystem\Form
  *
  * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
@@ -46,7 +46,7 @@ class SettingsAdminForm extends FormBase
 
     function __construct()
     {
-        $this->config    = \Drupal::config('s3fs.settings');
+        $this->config    = \Drupal::config('s3filesystem.settings');
         $this->s3Config  = $this->config->get('s3');
         $this->awsConfig = $this->config->get('aws');
     }
@@ -60,7 +60,7 @@ class SettingsAdminForm extends FormBase
      */
     public function getFormId()
     {
-        return 's3fs_settings_form';
+        return 's3filesystem_settings_form';
     }
 
     /**
@@ -76,21 +76,21 @@ class SettingsAdminForm extends FormBase
      */
     public function buildForm(array $form, FormStateInterface $form_state)
     {
-        $form['s3fs_credentials'] = array(
+        $form['s3filesystem_credentials'] = array(
             '#type'        => 'fieldset',
             '#title'       => $this->t('Amazon Web Services Credentials'),
             '#collapsible' => true,
             '#collapsed'   => false,
         );
-        $this->addAWSCredentialsSection($form['s3fs_credentials']);
+        $this->addAWSCredentialsSection($form['s3filesystem_credentials']);
 
-        $form['s3fs_s3'] = array(
+        $form['s3filesystem_s3'] = array(
             '#type'        => 'fieldset',
             '#title'       => $this->t('S3 Settings'),
             '#collapsible' => true,
             '#collapsed'   => false,
         );
-        $this->addS3ConfigSection($form['s3fs_s3']);
+        $this->addS3ConfigSection($form['s3filesystem_s3']);
 
         $form['actions']['submit'] = array(
             '#type'        => 'submit',
@@ -105,25 +105,25 @@ class SettingsAdminForm extends FormBase
     {
         /** @var $form_state \Drupal\Core\Form\FormState */
 
-        $s3Hostname = $form_state->getValue('s3fs_custom_s3_host_hostname');
-        if($form_state->getValue('s3fs_custom_s3_host_enabled') && empty($s3Hostname))
+        $s3Hostname = $form_state->getValue('s3filesystem_custom_s3_host_hostname');
+        if($form_state->getValue('s3filesystem_custom_s3_host_enabled') && empty($s3Hostname))
         {
-            $form_state->setErrorByName('s3fs_hostname', $this->t('You must specify a Hostname to use the Custom Host feature.'));
+            $form_state->setErrorByName('s3filesystem_hostname', $this->t('You must specify a Hostname to use the Custom Host feature.'));
         }
 
-        $s3CdnHost = $form_state->getValue('s3fs_custom_cdn_domain');
-        if($form_state->getValue('s3fs_custom_cdn_enabled') && empty($s3CdnHost))
+        $s3CdnHost = $form_state->getValue('s3filesystem_custom_cdn_domain');
+        if($form_state->getValue('s3filesystem_custom_cdn_enabled') && empty($s3CdnHost))
         {
-            $form_state->setErrorByName('s3fs_custom_cdn_domain', $this->t('You must specify a CDN Domain Name to use the CNAME feature.'));
+            $form_state->setErrorByName('s3filesystem_custom_cdn_domain', $this->t('You must specify a CDN Domain Name to use the CNAME feature.'));
         }
 
-        $awsProxy = $form_state->getValue('s3fs_awssdk2_proxy_enabled');
+        $awsProxy = $form_state->getValue('s3filesystem_awssdk2_proxy_enabled');
         if($awsProxy)
         {
-            $proxyHosy = $form_state->getValue('s3fs_awssdk2_proxy_host');
+            $proxyHosy = $form_state->getValue('s3filesystem_awssdk2_proxy_host');
             if(!preg_match('/^.*?:[0-9]+$/', $proxyHosy))
             {
-                $form_state->setErrorByName('s3fs_awssdk2_proxy_host', $this->t('The proxy host is invalid. It must be in the format hostname:port'));
+                $form_state->setErrorByName('s3filesystem_awssdk2_proxy_host', $this->t('The proxy host is invalid. It must be in the format hostname:port'));
             }
         }
 
@@ -136,14 +136,14 @@ class SettingsAdminForm extends FormBase
             // listObjects() will trigger descriptive exceptions if the credentials,
             // bucket name, or region are invalid/mismatched.
             $s3->listObjects(array(
-                'Bucket'    => $form_state->getValue('s3fs_bucket'),
-                'Prefix'    => $form_state->getValue('s3fs_keyprefix'),
+                'Bucket'    => $form_state->getValue('s3filesystem_bucket'),
+                'Prefix'    => $form_state->getValue('s3filesystem_keyprefix'),
                 'Delimiter' => '/',
             ));
         }
-        catch(S3fsException $e)
+        catch(S3FileSystemException $e)
         {
-            $form_state->setErrorByName('s3fs_bucket', $e->getMessage());
+            $form_state->setErrorByName('s3filesystem_bucket', $e->getMessage());
         }
         catch(InvalidAccessKeyIdException $e)
         {
@@ -155,15 +155,15 @@ class SettingsAdminForm extends FormBase
         }
         catch(NoSuchBucketException $e)
         {
-            $form_state->setErrorByName('s3fs_bucket', $this->t('The specified bucket does not exist.'));
+            $form_state->setErrorByName('s3filesystem_bucket', $this->t('The specified bucket does not exist.'));
         }
         catch(PermanentRedirectException $e)
         {
-            $form_state->setErrorByName('s3fs_region', $this->t('This bucket exists, but it is not in the specified region.'));
+            $form_state->setErrorByName('s3filesystem_region', $this->t('This bucket exists, but it is not in the specified region.'));
         }
         catch(\Exception $e)
         {
-            $form_state->setErrorByName('s3fs_bucket', $this->t('An unexpected %exception occured, with the following error message:<br>%error',
+            $form_state->setErrorByName('s3filesystem_bucket', $this->t('An unexpected %exception occured, with the following error message:<br>%error',
                 array('%exception' => get_class($e), '%error' => $e->getMessage())));
         }
     }
@@ -193,7 +193,7 @@ class SettingsAdminForm extends FormBase
     private function addAWSCredentialsSection(array &$form)
     {
 
-        $form['s3fs_use_instance_profile'] = array(
+        $form['s3filesystem_use_instance_profile'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('Use EC2 Instance Profile Credentials'),
             '#default_value' => $this->awsConfig['use_instance_profile'],
@@ -201,98 +201,98 @@ class SettingsAdminForm extends FormBase
                                 rather than setting your AWS credentials directly.'),
         );
 
-        $form['s3fs_awssdk2_access_key'] = array(
+        $form['s3filesystem_awssdk2_access_key'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Amazon Web Services Access Key'),
             '#default_value' => $this->awsConfig['access_key'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-use-instance-profile]' => array('checked' => false),
+                    ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => false),
                 ),
             ),
         );
 
-        $form['s3fs_awssdk2_secret_key'] = array(
+        $form['s3filesystem_awssdk2_secret_key'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Amazon Web Services Secret Key'),
             '#default_value' => $this->awsConfig['secret_key'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-use-instance-profile]' => array('checked' => false),
+                    ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => false),
                 ),
             ),
         );
 
-        $form['s3fs_awssdk2_default_cache_config'] = array(
+        $form['s3filesystem_awssdk2_default_cache_config'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Default Cache Location'),
             '#description'   => $this->t('The default cache location for your EC2 Instance Profile Credentials.'),
             '#default_value' => $this->awsConfig['default_cache_config'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-use-instance-profile]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => true),
                 ),
             ),
         );
 
 
-        $form['s3fs_proxy'] = array(
+        $form['s3filesystem_proxy'] = array(
             '#type'        => 'fieldset',
             '#title'       => $this->t('Proxy Settings'),
             '#collapsible' => true,
             '#collapsed'   => false,
             '#states'      => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-use-instance-profile]' => array('checked' => false),
+                    ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => false),
                 ),
             ),
         );
 
-        $form['s3fs_proxy']['s3fs_awssdk2_proxy_enabled'] = array(
+        $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_enabled'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('Enable proxy'),
             '#description'   => $this->t('Enable to connect to AWS via a proxy'),
             '#default_value' => $this->awsConfig['proxy']['enabled'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-use-instance-profile]' => array('checked' => false),
+                    ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => false),
                 ),
             ),
         );
 
-        $form['s3fs_proxy']['s3fs_awssdk2_proxy_host'] = array(
+        $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_host'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Host and Port'),
             '#description'   => $this->t('Use the format hostname:port'),
             '#default_value' => $this->awsConfig['proxy']['host'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-awssdk2-proxy-enabled]' => array('checked' => true),
-                    ':input[id=edit-s3fs-use-instance-profile]'  => array('checked' => false),
+                    ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-use-instance-profile]'  => array('checked' => false),
                 ),
             ),
         );
 
-        $form['s3fs_proxy']['s3fs_awssdk2_proxy_timeout'] = array(
+        $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_timeout'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Timeout'),
             '#default_value' => $this->awsConfig['proxy']['timeout'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-awssdk2-proxy-enabled]' => array('checked' => true),
-                    ':input[id=edit-s3fs-use-instance-profile]'  => array('checked' => false),
+                    ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-use-instance-profile]'  => array('checked' => false),
                 ),
             ),
         );
 
-        $form['s3fs_proxy']['s3fs_awssdk2_proxy_connect_timeout'] = array(
+        $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_connect_timeout'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Connection Timeout'),
             '#default_value' => $this->awsConfig['proxy']['connect_timeout'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-awssdk2-proxy-enabled]' => array('checked' => true),
-                    ':input[id=edit-s3fs-use-instance-profile]'  => array('checked' => false),
+                    ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-use-instance-profile]'  => array('checked' => false),
                 ),
             ),
         );
@@ -318,14 +318,14 @@ class SettingsAdminForm extends FormBase
             'sa-east-1'      => 'South America - Sao Paulo (sa-east-1)',
         );
 
-        $form['s3fs_bucket'] = array(
+        $form['s3filesystem_bucket'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Bucket Name'),
             '#default_value' => $this->s3Config['bucket'],
             '#required'      => true,
         );
 
-        $form['s3fs_keyprefix'] = array(
+        $form['s3filesystem_keyprefix'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Prefix Key'),
             '#description'   => $this->t('The key prefix is used to limit objects returned from S3 and prepended to URLs.'),
@@ -333,7 +333,7 @@ class SettingsAdminForm extends FormBase
             '#required'      => true,
         );
 
-        $form['s3fs_region'] = array(
+        $form['s3filesystem_region'] = array(
             '#type'          => 'select',
             '#options'       => $region_map,
             '#title'         => $this->t('Region'),
@@ -341,7 +341,7 @@ class SettingsAdminForm extends FormBase
             '#default_value' => $this->s3Config['region'],
         );
 
-        $form['s3fs_force_https'] = array(
+        $form['s3filesystem_force_https'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('Always serve files from S3 via HTTPS'),
             '#description'   => $this->t('Forces S3 File System to always generate HTTPS URLs for files in your bucket, e.g. "https://mybucket.s3.amazonaws.com/smiley.jpg".<br>
@@ -353,7 +353,7 @@ class SettingsAdminForm extends FormBase
         $this->addCustomS3HostSection($form);
         $this->addS3CacheSection($form);
 
-        $form['s3fs_presigned_urls'] = array(
+        $form['s3filesystem_presigned_urls'] = array(
             '#type'          => 'textarea',
             '#title'         => $this->t('Presigned URLs'),
             '#description'   => $this->t('A list of timeouts and paths that should be delivered through a presigned url.<br>
@@ -365,7 +365,7 @@ class SettingsAdminForm extends FormBase
             '#rows'          => 5,
         );
 
-        $form['s3fs_saveas'] = array(
+        $form['s3filesystem_saveas'] = array(
             '#type'          => 'textarea',
             '#title'         => $this->t('Force Save As'),
             '#description'   => $this->t('A list of paths for which users will be forced to save the file, rather than displaying it in the browser.<br>
@@ -376,7 +376,7 @@ class SettingsAdminForm extends FormBase
             '#rows'          => 5,
         );
 
-        $form['s3fs_torrents'] = array(
+        $form['s3filesystem_torrents'] = array(
             '#type'          => 'textarea',
             '#title'         => $this->t('Torrents'),
             '#description'   => $this->t('A list of paths that should be delivered via BitTorrent.<br>
@@ -398,39 +398,39 @@ class SettingsAdminForm extends FormBase
     {
         $customCDN = $this->s3Config['custom_cdn'];
 
-        $form['s3fs_custom_cdn_settings_fieldset'] = array(
+        $form['s3filesystem_custom_cdn_settings_fieldset'] = array(
             '#type'  => 'fieldset',
             '#title' => $this->t('CDN Settings'),
         );
 
-        $form['s3fs_custom_cdn_settings_fieldset']['s3fs_custom_cdn_enabled'] = array(
+        $form['s3filesystem_custom_cdn_settings_fieldset']['s3filesystem_custom_cdn_enabled'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('Enable Custom CDN'),
             '#description'   => $this->t('Serve files from a custom domain by using an appropriately named bucket, e.g. "mybucket.mydomain.com".'),
             '#default_value' => $customCDN['enabled'],
         );
 
-        $form['s3fs_custom_cdn_settings_fieldset']['s3fs_custom_cdn_domain'] = array(
+        $form['s3filesystem_custom_cdn_settings_fieldset']['s3filesystem_custom_cdn_domain'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('CDN Domain Name'),
             '#description'   => $this->t('If serving files from CloudFront, the bucket name can differ from the domain name.'),
             '#default_value' => $customCDN['domain'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-custom-cdn-enabled]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-custom-cdn-enabled]' => array('checked' => true),
                 ),
             ),
         );
 
 
-        $form['s3fs_custom_cdn_settings_fieldset']['s3fs_custom_cdn_http_only'] = array(
+        $form['s3filesystem_custom_cdn_settings_fieldset']['s3filesystem_custom_cdn_http_only'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('CDN over HTTP only'),
             '#description'   => $this->t('Enable if you only want to serve files over the CDN on the http (non-secure) protocol only'),
             '#default_value' => $customCDN['http_only'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-custom-cdn-enabled]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-custom-cdn-enabled]' => array('checked' => true),
                 ),
             ),
         );
@@ -446,26 +446,26 @@ class SettingsAdminForm extends FormBase
     {
         $customHost = $this->s3Config['custom_host'];
 
-        $form['s3fs_custom_s3_host_settings_fieldset'] = array(
+        $form['s3filesystem_custom_s3_host_settings_fieldset'] = array(
             '#type'  => 'fieldset',
             '#title' => $this->t('Custom Host Settings'),
         );
 
-        $form['s3fs_custom_s3_host_settings_fieldset']['s3fs_custom_s3_host_enabled'] = array(
+        $form['s3filesystem_custom_s3_host_settings_fieldset']['s3filesystem_custom_s3_host_enabled'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('Use a Custom Host'),
             '#description'   => $this->t('Connect to an S3-compatible storage service other than Amazon.'),
             '#default_value' => $customHost['enabled'],
         );
 
-        $form['s3fs_custom_s3_host_settings_fieldset']['s3fs_custom_s3_host_hostname'] = array(
+        $form['s3filesystem_custom_s3_host_settings_fieldset']['s3filesystem_custom_s3_host_hostname'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Hostname'),
             '#description'   => $this->t('Custom service hostname, e.g. "objects.dreamhost.com".'),
             '#default_value' => $customHost['hostname'],
             '#states'        => array(
                 'visible' => array(
-                    ':input[id=edit-s3fs-custom-s3-host-enabled]' => array('checked' => true),
+                    ':input[id=edit-s3filesystem-custom-s3-host-enabled]' => array('checked' => true),
                 ),
             ),
         );
@@ -475,21 +475,21 @@ class SettingsAdminForm extends FormBase
     {
 
 
-        $form['s3fs_cache_settings_fieldset'] = array(
+        $form['s3filesystem_cache_settings_fieldset'] = array(
             '#type'  => 'fieldset',
             '#title' => $this->t('Cache Settings'),
         );
 
-        $form['s3fs_cache_settings_fieldset']['s3fs_ignore_cache'] = array(
+        $form['s3filesystem_cache_settings_fieldset']['s3filesystem_ignore_cache'] = array(
             '#type'          => 'checkbox',
             '#title'         => $this->t('Ignore the file metadata cache'),
             '#description'   => $this->t("If you need to debug a problem with S3, you may want to temporarily ignore the file metadata cache.
        This will make all filesystem reads hit S3 instead of the cache.<br>
-       <b>This causes s3fs to work extremely slowly, and should never be enabled on a production site.</b>"),
+       <b>This causes s3filesystem to work extremely slowly, and should never be enabled on a production site.</b>"),
             '#default_value' => $this->s3Config['ignore_cache'],
         );
 
-        $form['s3fs_cache_settings_fieldset']['s3fs_refresh_prefix'] = array(
+        $form['s3filesystem_cache_settings_fieldset']['s3filesystem_refresh_prefix'] = array(
             '#type'          => 'textfield',
             '#title'         => $this->t('Partial Refresh Prefix'),
             '#default_value' => $this->s3Config['refresh_prefix'],
@@ -533,37 +533,37 @@ class SettingsAdminForm extends FormBase
         $s3Config  = $config->get('s3');
         $awsConfig = $config->get('aws');
 
-        $s3Config['bucket']         = $form_state->getValue('s3fs_bucket');
-        $s3Config['keyprefix']      = $form_state->getValue('s3fs_keyprefix');
-        $s3Config['region']         = $form_state->getValue('s3fs_region');
-        $s3Config['force_https']    = $form_state->getValue('s3fs_force_https');
-        $s3Config['ignore_cache']   = $form_state->getValue('s3fs_ignore_cache');
-        $s3Config['refresh_prefix'] = $form_state->getValue('s3fs_refresh_prefix');
-        $s3Config['presigned_urls'] = $this->parseTextAreaList($form_state->getValue('s3fs_presigned_urls'));
-        $s3Config['saveas']         = $this->parseTextAreaList($form_state->getValue('s3fs_saveas'));
-        $s3Config['torrents']       = $this->parseTextAreaList($form_state->getValue('s3fs_torrents'));
+        $s3Config['bucket']         = $form_state->getValue('s3filesystem_bucket');
+        $s3Config['keyprefix']      = $form_state->getValue('s3filesystem_keyprefix');
+        $s3Config['region']         = $form_state->getValue('s3filesystem_region');
+        $s3Config['force_https']    = $form_state->getValue('s3filesystem_force_https');
+        $s3Config['ignore_cache']   = $form_state->getValue('s3filesystem_ignore_cache');
+        $s3Config['refresh_prefix'] = $form_state->getValue('s3filesystem_refresh_prefix');
+        $s3Config['presigned_urls'] = $this->parseTextAreaList($form_state->getValue('s3filesystem_presigned_urls'));
+        $s3Config['saveas']         = $this->parseTextAreaList($form_state->getValue('s3filesystem_saveas'));
+        $s3Config['torrents']       = $this->parseTextAreaList($form_state->getValue('s3filesystem_torrents'));
 
         $s3Config['custom_s3_host'] = array(
-            'enabled'  => $form_state->getValue('s3fs_custom_s3_host_enabled'),
-            'hostname' => $form_state->getValue('s3fs_custom_s3_host_hostname'),
+            'enabled'  => $form_state->getValue('s3filesystem_custom_s3_host_enabled'),
+            'hostname' => $form_state->getValue('s3filesystem_custom_s3_host_hostname'),
         );
 
         $s3Config['custom_cdn'] = array(
-            'enabled'   => $form_state->getValue('s3fs_custom_cdn_enabled'),
-            'domain'    => $form_state->getValue('s3fs_custom_cdn_domain'),
-            'http_only' => $form_state->getValue('s3fs_custom_cdn_http_only'),
+            'enabled'   => $form_state->getValue('s3filesystem_custom_cdn_enabled'),
+            'domain'    => $form_state->getValue('s3filesystem_custom_cdn_domain'),
+            'http_only' => $form_state->getValue('s3filesystem_custom_cdn_http_only'),
         );
 
-        $awsConfig['use_instance_profile'] = $form_state->getValue('s3fs_use_instance_profile');
-        $awsConfig['default_cache_config'] = $form_state->getValue('s3fs_awssdk2_default_cache_config');
-        $awsConfig['access_key']           = $form_state->getValue('s3fs_awssdk2_access_key');
-        $awsConfig['secret_key']           = $form_state->getValue('s3fs_awssdk2_secret_key');
+        $awsConfig['use_instance_profile'] = $form_state->getValue('s3filesystem_use_instance_profile');
+        $awsConfig['default_cache_config'] = $form_state->getValue('s3filesystem_awssdk2_default_cache_config');
+        $awsConfig['access_key']           = $form_state->getValue('s3filesystem_awssdk2_access_key');
+        $awsConfig['secret_key']           = $form_state->getValue('s3filesystem_awssdk2_secret_key');
 
         $awsConfig['proxy'] = array(
-            'enabled'         => (bool)$form_state->getValue('s3fs_awssdk2_proxy_enabled'),
-            'host'            => $form_state->getValue('s3fs_awssdk2_proxy_host'),
-            'connect_timeout' => (int)$form_state->getValue('s3fs_awssdk2_proxy_connect_timeout'),
-            'timeout'         => (int)$form_state->getValue('s3fs_awssdk2_proxy_timeout'),
+            'enabled'         => (bool)$form_state->getValue('s3filesystem_awssdk2_proxy_enabled'),
+            'host'            => $form_state->getValue('s3filesystem_awssdk2_proxy_host'),
+            'connect_timeout' => (int)$form_state->getValue('s3filesystem_awssdk2_proxy_connect_timeout'),
+            'timeout'         => (int)$form_state->getValue('s3filesystem_awssdk2_proxy_timeout'),
         );
 
         $config->set('s3', $s3Config);

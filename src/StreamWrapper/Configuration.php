@@ -1,11 +1,11 @@
 <?php
 
-namespace Drupal\s3fs\StreamWrapper;
+namespace Drupal\s3filesystem\StreamWrapper;
 
 use Drupal\Core\Routing\LinkGeneratorTrait;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Url;
-use Drupal\s3fs\Exception\S3fsException;
+use Drupal\s3filesystem\Exception\S3FileSystemException;
 use Psr\Log\LogLevel;
 
 
@@ -68,7 +68,7 @@ class Configuration
      */
     public function getDefaultSettings()
     {
-        return \Drupal::config('s3fs.settings');
+        return \Drupal::config('s3filesystem.settings');
     }
 
     /**
@@ -98,13 +98,13 @@ class Configuration
      */
     public function log($level, $message, $context = array())
     {
-        \Drupal::logger('s3fs')->log($level, $message, $context);
+        \Drupal::logger('s3filesystem')->log($level, $message, $context);
     }
 
     /**
      * Configure the configuration
      *
-     * @throws S3fsException
+     * @throws S3FileSystemException
      */
     public function configure()
     {
@@ -119,9 +119,9 @@ class Configuration
         if(!$this->s3Config['bucket'])
         {
             $msg = $this->t('Your AmazonS3 bucket name is not configured. Please visit the !settings_page.',
-                array('!settings_page' => $this->l($this->t('Configuration Page'), Url::fromRoute('s3fs.settings')) ));
+                array('!settings_page' => $this->l($this->t('Configuration Page'), Url::fromRoute('s3filesystem.settings')) ));
             $this->log(LogLevel::ERROR, $msg);
-            throw new S3fsException($msg);
+            throw new S3FileSystemException($msg);
         }
 
         // Always use HTTPS when the page is being served via HTTPS, to avoid
@@ -156,7 +156,7 @@ class Configuration
             else
             {
                 // Due to the config form's validation, this shouldn't ever happen.
-                throw new S3fsException($this->t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
+                throw new S3FileSystemException($this->t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
             }
         }
 
