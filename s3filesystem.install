@@ -8,79 +8,71 @@
 /**
  * Implements hook_requirements().
  */
-function s3filesystem_requirements($phase)
-{
+function s3filesystem_requirements($phase) {
 
-    $t = \drupal::translation();
+  $t = \drupal::translation();
 
-    if($phase != 'runtime')
-    {
-        return array();
-    }
+  if ($phase != 'runtime') {
+    return array();
+  }
 
-    if(ini_get('allow_url_fopen'))
-    {
-        $requirements['s3filesystem_allow_url_fopen'] = array(
-            'severity' => REQUIREMENT_OK,
-            'title'    => $t->translate('allow_url_fopen'),
-            'value'    => $t->translate('Enabled'),
-        );
-    }
-    else
-    {
-        $requirements['s3filesystem_allow_url_fopen'] = array(
-            'severity'    => REQUIREMENT_ERROR,
-            'title'       => $t->translate('allow_url_fopen'),
-            'value'       => $t->translate('Disabled'),
-            'description' => $t->translate('The S3 File System module requires that the allow_url_fopen setting be turned on in php.ini.'),
-        );
-    }
-
-    if(PHP_INT_SIZE === 8)
-    {
-        $requirements['s3filesystem_int64'] = array(
-            'title'    => $t->translate('PHP architecture'),
-            'value'    => $t->translate('64-bit'),
-            'severity' => REQUIREMENT_OK,
-        );
-    }
-    else
-    {
-        $requirements['s3filesystem_int64'] = array(
-            'title'       => $t->translate('PHP architecture'),
-            'value'       => $t->translate('32-bit'),
-            'description' => $t->translate('A 64-bit PHP installation is required in order to support files larger than 2GB.'),
-            'severity'    => REQUIREMENT_WARNING,
-        );
-    }
-
-    if(class_exists('\Aws\S3\S3Client'))
-    {
-        $requirements['s3filesystem_awssdk2'] = array(
-            'title'    => $t->translate('AWS SDK for PHP 2'),
-            'value'    => $t->translate('Installed.'),
-            'severity' => REQUIREMENT_OK,
-        );
-    }
-    else
-    {
-        $requirements['s3filesystem_awssdk2'] = array(
-            'title'       => $t->translate('AWS SDK for PHP 2'),
-            'value'       => $t->translate('The S3 File System module requires the AWS SDK for PHP 2 library.'),
-            'description' => $t->translate('The Libraries module reported the following error: <br>
-        Please check the installation instructions for S3 File System.'),
-            'severity'    => REQUIREMENT_ERROR,
-        );
-    }
-
-    // Report the version number of S3 File System on the system status page.
-    $requirements['s3filesystem_version'] = array(
-        'title'    => $t->translate('S3 File System'),
-        'value'    => S3FILESYSTEM_VERSION,
-        'severity' => REQUIREMENT_OK,
+  if (ini_get('allow_url_fopen')) {
+    $requirements['s3filesystem_allow_url_fopen'] = array(
+      'severity' => REQUIREMENT_OK,
+      'title'    => $t->translate('allow_url_fopen'),
+      'value'    => $t->translate('Enabled'),
     );
+  }
+  else {
+    $requirements['s3filesystem_allow_url_fopen'] = array(
+      'severity'    => REQUIREMENT_ERROR,
+      'title'       => $t->translate('allow_url_fopen'),
+      'value'       => $t->translate('Disabled'),
+      'description' => $t->translate('The S3 File System module requires that the allow_url_fopen setting be turned on in php.ini.'),
+    );
+  }
 
-    return $requirements;
+  if (PHP_INT_SIZE === 8) {
+    $requirements['s3filesystem_int64'] = array(
+      'title'    => $t->translate('PHP architecture'),
+      'value'    => $t->translate('64-bit'),
+      'severity' => REQUIREMENT_OK,
+    );
+  }
+  else {
+    $requirements['s3filesystem_int64'] = array(
+      'title'       => $t->translate('PHP architecture'),
+      'value'       => $t->translate('32-bit'),
+      'description' => $t->translate('A 64-bit PHP installation is required in order to support files larger than 2GB.'),
+      'severity'    => REQUIREMENT_WARNING,
+    );
+  }
+
+  if (class_exists('\Aws\S3\S3Client')) {
+    $requirements['s3filesystem_awssdk2'] = array(
+      'title'    => $t->translate('AWS SDK for PHP 2'),
+      'value'    => $t->translate('Installed.'),
+      'severity' => REQUIREMENT_OK,
+    );
+  }
+  else {
+    $requirements['s3filesystem_awssdk2'] = array(
+      'title'       => $t->translate('AWS SDK for PHP 2'),
+      'value'       => $t->translate('The S3 File System module requires the AWS SDK for PHP 2 library.'),
+      'description' => $t->translate('The Libraries module reported the following error: <br>
+        Please check the installation instructions for S3 File System.'),
+      'severity'    => REQUIREMENT_ERROR,
+    );
+  }
+
+  // Report the version number of S3 File System on the system status page.
+  $requirements['s3filesystem_version'] = array(
+    'title'    => $t->translate('S3 File System'),
+    'value'    => S3FILESYSTEM_VERSION,
+    'severity' => REQUIREMENT_OK,
+  );
+
+  return $requirements;
 }
 
 /**
@@ -88,72 +80,70 @@ function s3filesystem_requirements($phase)
  *
  * @see hook_uninstall()
  */
-function s3filesystem_uninstall()
-{
+function s3filesystem_uninstall() {
 
 }
 
 /**
  * Implements hook_schema().
  */
-function s3filesystem_schema()
-{
-    $schema = array();
+function s3filesystem_schema() {
+  $schema = array();
 
-    $schema['file_s3filesystem'] = array(
-        'description' => 'Stores metadata about files in the S3 File System.',
-        'fields'      => array(
-            'uri'       => array(
-                'description' => 'The S3 URI of the file.',
-                'type'        => 'varchar',
-                'length'      => 255,
-                'not null'    => true,
-                'default'     => '',
-            ),
-            'filesize'  => array(
-                'description' => 'The size of the file in bytes.',
-                'type'        => 'int',
-                'size'        => 'big',
-                'unsigned'    => true,
-                'not null'    => true,
-                'default'     => 0,
-            ),
-            'timestamp' => array(
-                'description' => 'UNIX timestamp for when the file was added.',
-                'type'        => 'int',
-                'unsigned'    => true,
-                'not null'    => true,
-                'default'     => 0,
-            ),
-            'dir'       => array(
-                'description' => 'Boolean indicating whether or not this object is a directory.',
-                'type'        => 'int',
-                'not null'    => true,
-                'default'     => 0,
-            ),
-            'mode'      => array(
-                'description' => 'The file mode returned by the stat function.',
-                'type'        => 'int',
-                'unsigned'    => true,
-                'not null'    => true,
-                'default'     => 0,
-            ),
-            'uid'       => array(
-                'description' => 'The S3 uid of the user who is associated with the file.',
-                'type'        => 'varchar',
-                'length'      => 255,
-                'not null'    => true,
-                'default'     => '',
-            ),
-        ),
-        'indexes'     => array(
-            'timestamp' => array('timestamp'),
-        ),
-        'primary key' => array('uri'),
-        'collation'   => 'utf8_bin',
-    );
+  $schema['file_s3filesystem'] = array(
+    'description' => 'Stores metadata about files in the S3 File System.',
+    'fields'      => array(
+      'uri'       => array(
+        'description' => 'The S3 URI of the file.',
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => TRUE,
+        'default'     => '',
+      ),
+      'filesize'  => array(
+        'description' => 'The size of the file in bytes.',
+        'type'        => 'int',
+        'size'        => 'big',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+        'default'     => 0,
+      ),
+      'timestamp' => array(
+        'description' => 'UNIX timestamp for when the file was added.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+        'default'     => 0,
+      ),
+      'dir'       => array(
+        'description' => 'Boolean indicating whether or not this object is a directory.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+        'default'     => 0,
+      ),
+      'mode'      => array(
+        'description' => 'The file mode returned by the stat function.',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+        'default'     => 0,
+      ),
+      'uid'       => array(
+        'description' => 'The S3 uid of the user who is associated with the file.',
+        'type'        => 'varchar',
+        'length'      => 255,
+        'not null'    => TRUE,
+        'default'     => '',
+      ),
+    ),
+    'indexes'     => array(
+      'timestamp' => array('timestamp'),
+    ),
+    'primary key' => array('uri'),
+    'collation'   => 'utf8_bin',
+  );
 
-    return $schema;
+  return $schema;
 }
 
 /**
@@ -162,10 +152,9 @@ function s3filesystem_schema()
  * Because hook_schema() doesn't respect the 'collation' setting, we have to
  * set the collation manually. This hook is run after the table is created.
  */
-function s3filesystem_install()
-{
-    // As stated here: http://forums.mysql.com/read.php?103,19380,200971#msg-200971
-    // MySQL doesn't directly support case sensitive UTF8 collation. Fortunately,
-    // 'utf8_bin' collation fulfills our needs.
-    db_query("ALTER TABLE {file_s3filesystem} CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin");
+function s3filesystem_install() {
+  // As stated here: http://forums.mysql.com/read.php?103,19380,200971#msg-200971
+  // MySQL doesn't directly support case sensitive UTF8 collation. Fortunately,
+  // 'utf8_bin' collation fulfills our needs.
+  db_query("ALTER TABLE {file_s3filesystem} CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin");
 }
