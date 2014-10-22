@@ -1,0 +1,46 @@
+<?php
+
+/**
+ * @file
+ * Sets up the S3FileSystemStreamWrapper class to be used as a Drupal file system.
+ */
+use Drupal\Core\Link;
+use Drupal\Core\Routing\RouteMatchInterface;
+
+/**
+ * The version number of the current release.
+ */
+define('S3FILESYSTEM_VERSION', '8.0.x-beta2');
+
+/**
+ * Implements hook_help().
+ *
+ * @see hook_help()
+ *
+ * @param string              $route_name
+ * @param RouteMatchInterface $route_match
+ *
+ * @return string
+ */
+function s3filesystem_help($route_name, RouteMatchInterface $route_match) {
+  $translator = \Drupal::translation();
+  $linker     = \Drupal::linkGenerator();
+
+  if ($route_name == 's3filesystem.actions') {
+    $msg = $translator->translate('To perform actions, visit the !link',
+      array('!link' => $linker->generateFromLink(Link::createFromRoute($translator->translate('actions page'), 's3filesystem.actions'))));
+
+    return "<p>$msg</p>";
+  }
+  elseif ($route_name == 's3filesystem.settings') {
+    $msg = $translator->translate('These are the actions that you can perform upon S3 File System.');
+    $msg .= '<br>';
+    $msg .= $translator->translate('To change your settings, visit the !link.',
+      array(
+        '!link' => $linker->generateFromLink(Link::createFromRoute($translator->translate('settings page'), 's3filesystem.settings'))
+      )
+    );
+
+    return "<p>$msg</p>";
+  }
+}

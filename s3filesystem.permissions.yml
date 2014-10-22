@@ -1,0 +1,3 @@
+administer s3filesystem:
+  title: 'Administer S3 File System'
+  description: 'Allows a user configure the S3 configuration.'

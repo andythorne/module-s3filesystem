@@ -1,17 +1,15 @@
 <?php
 
-namespace Drupal\s3fs\Exception\StreamWrapper;
+namespace Drupal\s3filesystem\Exception\StreamWrapper;
 
 /**
- * Class ModeNotSupportedException
+ * Class StreamModeInvalidReadWriteException
  *
- * @author Andy Thorne <andy.thorne@timeinc.com>
+ * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
  */
-class StreamModeInvalidReadWriteException extends StreamModeInvalidException
-{
-    public function __construct(\Exception $previous = null)
-    {
-        parent::__construct('Cannot simultaneously read and write.', null, $previous);
-    }
+class StreamModeInvalidReadWriteException extends StreamModeInvalidException {
+  public function __construct(\Exception $previous = NULL) {
+    parent::__construct('Cannot simultaneously read and write.', NULL, $previous);
+  }
 } 

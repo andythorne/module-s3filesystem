@@ -1,5 +1,5 @@
 aws:
-  use_instance_profile: false
+  use_instance_profile: true
   default_cache_config: /tmp
 
   # Set keys

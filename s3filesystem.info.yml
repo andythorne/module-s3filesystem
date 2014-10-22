@@ -3,4 +3,4 @@ type: module
 description: 'Adds an Amazon Simple Storage Service-based remote file system to Drupal.'
 package: Media
 core: 8.x
-configure: s3fs.settings
+configure: s3filesystem.settings

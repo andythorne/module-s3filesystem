@@ -1,4 +1,4 @@
-S3 File System (s3fs) provides an additional file system to your drupal site,
+S3 File System (s3filesystem) provides an additional file system to your drupal site,
 alongside the public and private file systems, which stores files in Amazon's
 Simple Storage Service (S3) (or any S3-compatible storage service). You can set
 your site to use S3 File System as the default, or use it only for individual
@@ -29,10 +29,10 @@ Installation
 Configuration
 =============
 1. Configure your setttings for S3 File System (including your S3 bucket name) at
-   `/admin/config/media/s3fs/settings`, or override the $settings array in your
+   `/admin/config/media/s3filesystem/settings`, or override the $settings array in your
    settings.php file
 
-2. Import your images into the drupal's S3 cache by running `/admin/config/media/s3fs/actions`.
+2. Import your images into the drupal's S3 cache by running `/admin/config/media/s3filesystem/actions`.
    This will copy the filenames and attributes for every
    existing file in your S3 bucket into Drupal's database. This can take a
    significant amount of time for very large buckets (thousands of files).
