@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3filesystem\StreamWrapper\S3;
+namespace Drupal\s3filesystem\StreamWrapper;
 
 use Guzzle\Http\CachingEntityBody;
 

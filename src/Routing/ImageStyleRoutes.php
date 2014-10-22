@@ -23,14 +23,9 @@ class ImageStyleRoutes {
    */
   public function routes() {
     $routes = array();
-    // Generate image derivatives of publicly available files. If clean URLs are
-    // disabled image derivatives will always be served through the menu system.
-    // If clean URLs are enabled and the image derivative already exists, PHP
-    // will be bypassed.
-    $directory_path = file_stream_wrapper_get_instance_by_scheme('s3')->getDirectoryPath();
 
     $routes['image.style_s3'] = new Route(
-      '/' . $directory_path . '/styles/{image_style}/{path}',
+      '/s3/files/styles/{image_style}/{path}',
       array(
         '_controller' => 'Drupal\s3filesystem\Controller\S3FileSystemController::deliver',
       ),

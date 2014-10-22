@@ -10,25 +10,7 @@ use Drupal\Core\Routing\RouteMatchInterface;
 /**
  * The version number of the current release.
  */
-define('S3FILESYSTEM_VERSION', '8.0.x-beta1');
-
-
-/**
- * Implements hook_stream_wrappers().
- *
- * @see hook_stream_wrappers()
- */
-function s3filesystem_stream_wrappers() {
-  $translator = \Drupal::translation();
-
-  return array(
-    's3' => array(
-      'name'        => 'S3 File System',
-      'class'       => 'Drupal\s3filesystem\StreamWrapper\S3\S3StreamWrapper',
-      'description' => $translator->translate('Amazon Simple Storage Service'),
-    ),
-  );
-}
+define('S3FILESYSTEM_VERSION', '8.0.x-beta2');
 
 /**
  * Implements hook_help().

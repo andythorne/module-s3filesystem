@@ -497,7 +497,7 @@ class SettingsAdminForm extends FormBase {
   }
 
   /**
-   * Given a FormStateInterface, higrate the configurations
+   * Given a FormStateInterface, hydrate the configurations
    *
    * @param FormStateInterface $form_state
    * @param Config             $config

@@ -8,19 +8,23 @@
  * using the "s3://" scheme.
  */
 
-namespace Drupal\s3filesystem\StreamWrapper\S3;
+namespace Drupal\s3filesystem\StreamWrapper;
 
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\S3Client;
+use Drupal\Component\Utility\String;
+use Drupal\Component\Utility\UrlHelper;
+use Drupal\Core\Config\Config;
 use Drupal\Core\Database\StatementInterface;
 use Drupal\Core\File\MimeType\MimeTypeGuesser;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
+use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
 use Drupal\s3filesystem\Exception\AWS\S3\UploadFailedException;
+use Drupal\s3filesystem\Exception\S3FileSystemException;
 use Drupal\s3filesystem\Exception\StreamWrapper\StreamModeInvalidReadWriteException;
 use Drupal\s3filesystem\Exception\StreamWrapper\StreamModeInvalidXModeException;
 use Drupal\s3filesystem\Exception\StreamWrapper\StreamModeNotSupportedException;
-use Drupal\s3filesystem\StreamWrapper\Configuration;
 use Guzzle\Http\EntityBody;
 use Guzzle\Http\Message\RequestInterface;
 use Guzzle\Service\Command\CommandInterface;
@@ -30,6 +34,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Class S3StreamWrapper
@@ -39,9 +44,12 @@ use Symfony\Component\HttpFoundation\File\MimeType\MimeTypeGuesserInterface;
  * @package   Drupal\s3filesystem\StreamWrapper\S3
  *
  * @author    Andy Thorne <andy.thorne@timeinc.com>
- * @copyright Time Inc (UK) ${YEAR}
+ * @copyright Time Inc (UK) 2014
  */
 class S3StreamWrapper implements StreamWrapperInterface {
+
+  use StringTranslationTrait;
+
   /**
    * @var StreamInterface
    */
@@ -79,7 +87,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
   protected $uri = NULL;
 
   /**
-   * @var Configuration
+   * @var Config
    */
   protected $config;
 
@@ -106,49 +114,77 @@ class S3StreamWrapper implements StreamWrapperInterface {
   protected $mimeGuesser;
 
   /**
+   * @var Request
+   */
+  protected $request;
+
+  /**
    * Stream wrapper constructor.
    *
    * Creates the Aws\S3\S3Client client object and activates the options
    * specified on the S3 File System Settings page.
+   *
+   * @throws \Drupal\s3filesystem\Exception\S3FileSystemException
    */
   public function __construct() {
+
+    $settings      = \Drupal::config('s3filesystem.settings');
     $drupalAdaptor = \Drupal::service('s3filesystem.client');
     $s3Client      = $drupalAdaptor->getS3Client();
-    $logger        = \Drupal::logger('s3filesystem');
     $mimeGuesser   = \Drupal::service('file.mime_type.guesser');
+    $logger        = \Drupal::logger('s3filesystem');
+    $request       = \Drupal::request();
 
-    $cache        = \Drupal::cache()
-      ->get('s3filesystem.stream_wrapper.configuration');
-    $cachedConfig = $cache->data;
-
-    if ($cache->valid && $cachedConfig instanceof Configuration && $cachedConfig->configured) {
-      $config = $cachedConfig;
-    }
-    else {
-      $config = new Configuration();
-      $config->configure();
-      \Drupal::cache()
-        ->set('s3filesystem.stream_wrapper.configuration', $config, time() + 3600, array('s3filesystem'));
-    }
-
-    $this->setUp($drupalAdaptor, $s3Client, $config, $mimeGuesser, $logger);
+    $this->setUp($request, $drupalAdaptor, $s3Client, $settings, $mimeGuesser, $logger);
   }
+
+  /**
+   * Returns the type of stream wrapper.
+   *
+   * @return int
+   */
+  public static function getType() {
+    return StreamWrapperInterface::NORMAL;
+  }
+
+  /**
+   * Returns the name of the stream wrapper for use in the UI.
+   *
+   * @return string
+   *   The stream wrapper name.
+   */
+  public function getName() {
+    return 'S3 File System';
+  }
+
+  /**
+   * Returns the description of the stream wrapper for use in the UI.
+   *
+   * @return string
+   *   The stream wrapper description.
+   */
+  public function getDescription() {
+    return 'AWS S3 file storage stream wrapper';
+  }
+
 
   /**
    * Setup the stream wrapper
    *
+   * @param Request                  $request
    * @param DrupalAdaptor            $drupalAdaptor
    * @param S3Client                 $s3Client
-   * @param Configuration            $config
+   * @param Config                   $config
    * @param MimeTypeGuesserInterface $mimeGuesser
    * @param LoggerInterface          $logger
    */
-  public function setUp(DrupalAdaptor $drupalAdaptor, S3Client $s3Client, Configuration $config, MimeTypeGuesserInterface $mimeGuesser, LoggerInterface $logger = NULL) {
+  public function setUp(Request $request, DrupalAdaptor $drupalAdaptor, S3Client $s3Client, Config $config, MimeTypeGuesserInterface $mimeGuesser, LoggerInterface $logger = NULL) {
     $this->drupalAdaptor = $drupalAdaptor;
     $this->s3Client      = $s3Client;
     $this->config        = $config;
     $this->mimeGuesser   = $mimeGuesser;
     $this->logger        = $logger;
+    $this->request       = $request;
   }
 
   /**
@@ -228,8 +264,8 @@ class S3StreamWrapper implements StreamWrapperInterface {
    */
   public function setUri($uri) {
     $this->log("setUri($uri) called.");
-    if (strlen($this->config->s3Config['keyprefix']) && strpos($uri, $this->config->s3Config['keyprefix']) === FALSE) {
-      $uri = str_replace('s3://', 's3://' . $this->config->s3Config['keyprefix'] . '/', $uri);
+    if (strlen($this->config->get('s3.keyprefix')) && strpos($uri, $this->config->get('s3.keyprefix')) === FALSE) {
+      $uri = str_replace('s3://', 's3://' . $this->config->get('s3.keyprefix') . '/', $uri);
     }
     $this->uri = $uri;
   }
@@ -252,6 +288,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
    * The format of the returned URL will be different depending on how the S3
    * integration has been configured on the S3 File System admin page.
    *
+   * @throws S3FileSystemException
    * @return string
    *   Returns a string containing a web accessible URL for the resource.
    */
@@ -267,7 +304,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
     // gets requested.
     $path_parts = explode('/', $s3_filename);
     if ($path_parts[0] == 'styles') {
-      if (!$this->getObjectMetadata($this->uri) && !$this->getObjectMetadata(str_replace($this->config->s3Config['keyprefix'] . '/', '', $this->uri))) {
+      if (!$this->getObjectMetadata($this->uri) && !$this->getObjectMetadata(str_replace($this->config->get('s3.keyprefix') . '/', '', $this->uri))) {
         list(, $imageStyle) = array_splice($path_parts, 0, 2);
 
         return \Drupal::urlGenerator()
@@ -281,7 +318,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
     // If the filename contains a query string do not use cloudfront
     // It won't work!!!
     if (strpos($s3_filename, "?") !== FALSE) {
-      $this->config->s3Config['custom_host'] = NULL;
+      $this->config->set('s3.custom_host', NULL);
     }
 
     // Set up the URL settings from the Settings page.
@@ -290,11 +327,18 @@ class S3StreamWrapper implements StreamWrapperInterface {
       'presigned_url' => FALSE,
       'timeout'       => 60,
       'forced_saveas' => FALSE,
-      'api_args'      => array('Scheme' => !empty($this->config->s3Config['force_https']) ? 'https' : 'http'),
+      'api_args'      => array('Scheme' => $this->config->get('s3.force_https') ? 'https' : 'http'),
     );
 
     // Presigned URLs.
-    foreach ($this->config->presignedURLs as $blob => $timeout) {
+    foreach ($this->config->get('s3.presigned_urls') as $line) {
+
+      $blob    = trim($line);
+      $timeout = 60;
+      if ($blob && preg_match('/(.*)\|(.*)/', $blob, $matches)) {
+        $blob    = $matches[2];
+        $timeout = $matches[1];
+      }
       // ^ is used as the delimeter because it's an illegal character in URLs.
       if (preg_match("^$blob^", $s3_filename)) {
         $url_settings['presigned_url'] = TRUE;
@@ -303,7 +347,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
       }
     }
     // Forced Save As.
-    foreach ($this->config->saveas as $blob) {
+    foreach ($this->config->get('s3.saveas') as $blob) {
       if (preg_match("^$blob^", $s3_filename)) {
         $filename                                               = basename($s3_filename);
         $url_settings['api_args']['ResponseContentDisposition'] = "attachment; filename=\"$filename\"";
@@ -312,15 +356,31 @@ class S3StreamWrapper implements StreamWrapperInterface {
       }
     }
 
-    $keyPrefix = $this->config->s3Config['keyprefix'] ? trim($this->config->s3Config['keyprefix'], '/') . '/' : '';
-    if ($this->config->s3Config['custom_cdn']['enabled']) {
-      $url = "{$this->config->domain}/{$s3_filename}";
+    $keyPrefix = $this->config->get('s3.keyprefix') ? trim($this->config->get('s3.keyprefix'), '/') . '/' : '';
+    if ($this->config->get('s3.custom_cdn.enabled')) {
+      $cdnDomain   = $this->config->get('s3.custom_cdn.domain');
+      $cdnHttpOnly = (bool) $this->config->get('s3.custom_cdn.http_only');
+      if ($cdnDomain && (!$cdnHttpOnly || ($cdnHttpOnly && !$this->request->isSecure()))) {
+        $domain = String::checkPlain(UrlHelper::stripDangerousProtocols($cdnDomain));
+        if (!$domain) {
+          throw new S3FileSystemException($this->t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
+        }
+
+        // If domain is set to a root-relative path, add the hostname back in.
+        if (strpos($domain, '/') === 0) {
+          $domain = $this->request->getHttpHost() . $domain;
+        }
+        $scheme    = $this->request->isSecure() ? 'https' : 'http';
+        $cdnDomain = "$scheme://$domain";
+      }
+
+      $url = "{$cdnDomain}/{$s3_filename}";
       if (strpos($url, '/' . $keyPrefix) === FALSE && strpos($url, '/styles/') !== FALSE) {
         $url = str_replace('/styles/', '/' . $keyPrefix . 'styles/', $url);
       }
       else {
         if (strpos($url, '/' . $keyPrefix) === FALSE && strpos($url, '/styles/') === FALSE) {
-          $url = str_replace($this->config->domain . '/', $this->config->domain . '/' . $keyPrefix, $url);
+          $url = str_replace($cdnDomain . '/', $cdnDomain . '/' . $keyPrefix, $url);
         }
       }
     }
@@ -342,7 +402,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
           }
         }
       }
-      $url = $this->s3Client->getObjectUrl($this->config->s3Config['bucket'], $s3_filename, $expires, $url_settings['api_args']);
+      $url = $this->s3Client->getObjectUrl($this->config->get('s3.bucket'), $s3_filename, $expires, $url_settings['api_args']);
       if (strpos($url, $keyPrefix) === FALSE && strpos($url, '/styles/') !== FALSE) {
         $url = str_replace('/styles/', '/' . $keyPrefix . 'styles/', $url);
       }
@@ -357,7 +417,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
     // https://forums.aws.amazon.com/thread.jspa?threadID=140949
     // So Forced SaveAs and Presigned URLs cannot be served as torrents.
     if (!$url_settings['forced_saveas'] && !$url_settings['presigned_url']) {
-      foreach ($this->config->torrents as $blob) {
+      foreach ($this->config->get('s3.torrents') as $blob) {
         if (preg_match("^$blob^", $s3_filename)) {
           // A torrent URL is just a plain URL with "?torrent" on the end.
           $url .= '?torrent';
@@ -595,9 +655,6 @@ class S3StreamWrapper implements StreamWrapperInterface {
    * @see http://php.net/manual/en/streamwrapper.stream-write.php
    */
   public function stream_write($data) {
-    $bytes = strlen($data);
-    $this->log("stream_write() called with $bytes bytes of data for {$this->uri}.");
-
     return $this->body->write($data);
   }
 
@@ -1037,8 +1094,8 @@ class S3StreamWrapper implements StreamWrapperInterface {
    */
   protected function uriToS3Filename($uri) {
     $filename = str_replace('s3://', '', $uri);
-    if (strpos($filename, $this->config->s3Config['keyprefix']) === FALSE) {
-      $filename = rtrim($this->config->s3Config['keyprefix'], '/') . '/' . $filename;
+    if (strpos($filename, $this->config->get('s3.keyprefix')) === FALSE) {
+      $filename = rtrim($this->config->get('s3.keyprefix'), '/') . '/' . $filename;
     }
 
     // Remove both leading and trailing /s. S3 filenames never start with /,
@@ -1055,7 +1112,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
    * @return string
    */
   protected function uriToS3Filename2($uri) {
-    $filename = str_replace('s3://' . $this->config->s3Config['keyprefix'] . '/', '', $uri);
+    $filename = str_replace('s3://' . $this->config->get('s3.keyprefix') . '/', '', $uri);
     // Remove both leading and trailing /s. S3 filenames never start with /,
     // and a $uri for a folder might be specified with a trailing /, which
     // we'd need to remove to be able to retrieve it from the cache.
@@ -1158,7 +1215,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
 
       // If cache ignore is enabled, query S3 for all URIs which aren't in the
       // cache, and non-folder URIs which are.
-      if (!empty($this->config->s3Config['ignore_cache']) && !$metadata['dir']) {
+      if (!$this->config->get('s3.ignore_cache') && !$metadata['dir']) {
         // If getMetadataFromS3() returns FALSE, the file doesn't exist.
         $metadata = $this->getMetadataFromS3($uri);
       }
@@ -1292,7 +1349,7 @@ class S3StreamWrapper implements StreamWrapperInterface {
     unset($params['seekable']);
     unset($params['throw_exceptions']);
 
-    $params['Bucket'] = $this->config->s3Config['bucket'];
+    $params['Bucket'] = $this->config->get('s3.bucket');
     // Strip s3:// from the URI to get the S3 Key.
     $params['Key'] = $this->uriToS3Filename($uri);
 

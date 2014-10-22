@@ -3,10 +3,10 @@
 namespace Drupal\S3FileSystem\Tests\StreamWrapper;
 
 use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
-use Drupal\s3filesystem\S3FileSystemStreamWrapper;
-use Drupal\s3filesystem\StreamWrapper\S3\S3StreamWrapper;
+use Drupal\s3filesystem\StreamWrapper\S3StreamWrapper;
 use Drupal\Tests\UnitTestCase;
 use Psr\Log\NullLogger;
+use Symfony\Component\HttpFoundation\Request;
 
 
 /**
@@ -26,7 +26,7 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
    * @return S3StreamWrapper
    */
   protected function getWrapper(array $methods = NULL, \Closure $configClosure = NULL) {
-    $wrapper = $this->getMockBuilder('Drupal\s3filesystem\StreamWrapper\S3\S3StreamWrapper')
+    $wrapper = $this->getMockBuilder('Drupal\s3filesystem\StreamWrapper\S3StreamWrapper')
       ->disableOriginalConstructor()
       ->setMethods($methods)
       ->getMock();
@@ -36,62 +36,33 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
       ->getMock();
     $drupalAdaptor = new DrupalAdaptor($s3Client);
 
-    $config = $this->getMockBuilder('Drupal\s3filesystem\StreamWrapper\Configuration')
-      ->setMethods(array(
-        'log',
-        'getDefaultSettings',
-        'isRequestSecure',
-        'getHttpHost',
-      ))
-      ->getMock();
-
+    // the flattened config array
     $testConfig = array(
       's3filesystem.settings' => array(
-        's3'  =>
-          array(
-            'bucket'         => 'test-bucket',
-            'keyprefix'      => 'testprefix',
-            'region'         => 'eu-west-1',
-            'force_https'    => FALSE,
-            'ignore_cache'   => FALSE,
-            'refresh_prefix' => '',
-            'custom_host'    =>
-              array(
-                'enabled'  => FALSE,
-                'hostname' => NULL,
-              ),
-            'custom_cdn'     =>
-              array(
-                'enabled'   => FALSE,
-                'domain'    => 'assets.domain.co.uk',
-                'http_only' => TRUE,
-              ),
-            'presigned_urls' =>
-              array(),
-            'saveas'         =>
-              array(),
-            'torrents'       =>
-              array(),
-            'custom_s3_host' =>
-              array(
-                'enabled'  => FALSE,
-                'hostname' => '',
-              ),
-          ),
-        'aws' =>
-          array(
-            'use_instance_profile' => FALSE,
-            'default_cache_config' => '/tmp',
-            'access_key'           => 'INVALID',
-            'secret_key'           => 'INVALID',
-            'proxy'                =>
-              array(
-                'enabled'         => FALSE,
-                'host'            => 'proxy:8080',
-                'connect_timeout' => 10,
-                'timeout'         => 20,
-              ),
-          ),
+        's3.bucket'                  => 'test-bucket',
+        's3.keyprefix'               => 'testprefix',
+        's3.region'                  => 'eu-west-1',
+        's3.force_https'             => FALSE,
+        's3.ignore_cache'            => FALSE,
+        's3.refresh_prefix'          => '',
+        's3.custom_host.enabled'     => FALSE,
+        's3.custom_host.hostname'    => NULL,
+        's3.custom_cdn.enabled'      => FALSE,
+        's3.custom_cdn.domain'       => 'assets.domain.co.uk',
+        's3.custom_cdn.http_only'    => TRUE,
+        's3.presigned_urls'          => array(),
+        's3.saveas'                  => array(),
+        's3.torrents'                => array(),
+        's3.custom_s3_host.enabled'  => FALSE,
+        's3.custom_s3_host.hostname' => '',
+        'aws.use_instance_profile'   => FALSE,
+        'aws.default_cache_config'   => '/tmp',
+        'aws.access_key'             => 'INVALID',
+        'aws.secret_key'             => 'INVALID',
+        'aws.proxy.enabled'          => FALSE,
+        'aws.proxy.host'             => 'proxy:8080',
+        'aws.proxy.connect_timeout'  => 10,
+        'aws.proxy.timeout'          => 20,
       )
     );
 
@@ -99,33 +70,23 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
       $configClosure($testConfig);
     }
 
-    $settings = $this->getConfigFactoryStub($testConfig);
+    $config = $this->getConfigFactoryStub($testConfig)
+      ->get('s3filesystem.settings');
 
 
-    $config->expects($this->once())
-      ->method('getDefaultSettings')
-      ->willReturn($settings->get('s3filesystem.settings'));
-
-    $config->expects($this->atLeastOnce())
-      ->method('isRequestSecure')->willReturn(TRUE);
-
-    if ($testConfig['s3filesystem.settings']['s3']['custom_host']['enabled']) {
-      $config->expects($this->once())
-        ->method('getHttpHost')->willReturn('test.localhost');
-
-    }
-
-    if (!$testConfig['s3filesystem.settings']['s3']['custom_cdn']['enabled']) {
+    if (!$testConfig['s3filesystem.settings']['s3.custom_cdn.enabled']) {
       $s3Client->expects($this->any())
         ->method('getObjectUrl')
         ->willReturn('region.amazonaws.com/path/to/test.png');
     }
 
-    $config->configure();
     $mimeTypeGuesser = $this->getMock('Drupal\Core\File\MimeType\MimeTypeGuesser');
+
+    $request = new Request();
 
     /** @var $wrapper S3StreamWrapper */
     $wrapper->setUp(
+      $request,
       $drupalAdaptor,
       $s3Client,
       $config,
@@ -139,7 +100,7 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
   public function testSetUriWithPrefix() {
     $prefix  = 'testprefix';
     $wrapper = $this->getWrapper(NULL, function (&$config) use ($prefix) {
-      $config['s3filesystem.settings']['s3']['keyprefix'] = $prefix;
+      $config['s3filesystem.settings']['s3.keyprefix'] = $prefix;
     });
 
     $wrapper->setUri('s3://test.png');
@@ -148,7 +109,7 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
 
   public function testSetUriWithNoPrefix() {
     $wrapper = $this->getWrapper(NULL, function (&$config) {
-      $config['s3filesystem.settings']['s3']['keyprefix'] = NULL;
+      $config['s3filesystem.settings']['s3.keyprefix'] = NULL;
     });
 
     $wrapper->setUri('s3://test.png');
@@ -157,12 +118,13 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
 
   public function testExternalUrlWithCustomCDN() {
     $wrapper = $this->getWrapper(NULL, function (&$config) {
-      $config['s3filesystem.settings']['s3']['custom_cdn']['enabled'] = TRUE;
+      $config['s3filesystem.settings']['s3.custom_cdn.enabled'] = TRUE;
+      $config['s3filesystem.settings']['s3.custom_cdn.hostname'] = 'assets.domain.co.uk';
     });
 
     $wrapper->setUri('s3://test.png');
     $url = $wrapper->getExternalUrl();
-    $this->assertEquals('assets.domain.co.uk/testprefix/test.png', $url);
+    $this->assertEquals('http://assets.domain.co.uk/testprefix/test.png', $url);
   }
 
   public function testExternalUrl() {
@@ -175,7 +137,7 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
 
   public function testExternalUrlWithTorrents() {
     $wrapper = $this->getWrapper(NULL, function (&$config) {
-      $config['s3filesystem.settings']['s3']['torrents'] = array(
+      $config['s3filesystem.settings']['s3.torrents'] = array(
         'torrent/'
       );
     });
@@ -187,11 +149,11 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
 
   public function testExternalUrlWithSaveAs() {
     $wrapper = $this->getWrapper(NULL, function (&$config) {
-      $config['s3filesystem.settings']['s3']['saveas'] = array(
+      $config['s3filesystem.settings']['s3.saveas'] = array(
         'saveas/'
       );
 
-      $config['s3filesystem.settings']['s3']['torrents'] = array(
+      $config['s3filesystem.settings']['s3.torrents'] = array(
         'torrent/'
       );
     });
@@ -203,11 +165,11 @@ class S3FileSystemStreamWrapperTest extends UnitTestCase {
 
   public function testExternalUrlWithPresignedUrl() {
     $wrapper = $this->getWrapper(NULL, function (&$config) {
-      $config['s3filesystem.settings']['s3']['presigned_url'] = array(
+      $config['s3filesystem.settings']['s3.presigned_url'] = array(
         'presigned_url/'
       );
 
-      $config['s3filesystem.settings']['s3']['torrents'] = array(
+      $config['s3filesystem.settings']['s3.torrents'] = array(
         'torrent/'
       );
     });
