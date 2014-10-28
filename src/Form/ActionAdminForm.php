@@ -17,8 +17,6 @@ use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
  * @copyright Time Inc (UK) 2014
  */
 class ActionAdminForm extends FormBase {
-  use LinkGeneratorTrait;
-  use StringTranslationTrait;
 
   /**
    * Returns a unique string identifying the form.

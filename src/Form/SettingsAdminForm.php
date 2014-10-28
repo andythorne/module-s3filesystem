@@ -24,8 +24,6 @@ use Drupal\s3filesystem\Exception\S3FileSystemException;
  * @copyright Time Inc (UK) 2014
  */
 class SettingsAdminForm extends FormBase {
-  use LinkGeneratorTrait;
-  use StringTranslationTrait;
 
   /**
    * @var Config
