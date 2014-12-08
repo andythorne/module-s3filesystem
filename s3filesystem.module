@@ -10,7 +10,7 @@ use Drupal\Core\Routing\RouteMatchInterface;
 /**
  * The version number of the current release.
  */
-define('S3FILESYSTEM_VERSION', '8.0.x-beta2');
+define('S3FILESYSTEM_VERSION', '8.0.x-beta3');
 
 /**
  * Implements hook_help().

@@ -64,53 +64,62 @@ class S3FileSystemController extends ControllerBase {
     $scheme = array_shift($parts);
     $s3Path = implode('/', $parts);
 
-    $image_uri = "{$scheme}://{$s3Path}";
+    $imageUri = "{$scheme}://{$s3Path}";
 
+    // check the base image exists in the cache table. If we have no base image,
+    // check s3 (via file_exists). If s3 has no image, 404.
     $row = db_select('{file_s3filesystem}', 'f')
       ->fields('f', array('uri'))
-      ->where('uri = ? AND dir = 0', array($image_uri))
+      ->where('uri = ? AND dir = 0', array($imageUri))
       ->execute();
 
-    $derivative_uri        = $image_style->buildUri($image_uri);
-    $derivative_public_uri = file_create_url($derivative_uri);
-
-    if (!$image = $row->fetchAssoc()) {
-      return $this->redirectToAWS($derivative_public_uri);
+    if ((!$image = $row->fetchAssoc()) && !file_exists($imageUri)) {
+      return new Response(NULL, 404);
     }
+
+    $derivativeUri    = $image_style->buildUri($imageUri);
+    $derivativeExists = file_exists($derivativeUri);
 
     // Don't start generating the image if the derivative already exists or if
     // generation is in progress in another thread.
-    $lock_name = 'image_style_deliver:' . $path . ':' . Crypt::hashBase64($image_uri);
-    if (!file_exists($derivative_uri)) {
-      $lock_acquired = $this->lock->acquire($lock_name);
-      if (!$lock_acquired) {
+    if (!$derivativeExists) {
+      $lockName     = 'image_style_deliver:' . $path . ':' . Crypt::hashBase64($imageUri);
+      $lockAcquired = $this->lock->acquire($lockName);
+      if (!$lockAcquired) {
         // Tell client to retry again in 3 seconds. Currently no browsers are
         // known to support Retry-After.
         throw new ServiceUnavailableHttpException(3, $this->t('Image generation in progress. Try again shortly.'));
       }
+
+      $derivativeExists = $image_style->createDerivative($imageUri, $derivativeUri);
+
+
+var_dump($derivativeExists, is_dir("s3://styles/large/s3"), file_exists($derivativeExists), $imageUri, $derivativeUri);
+      $this->lock->release($lockName);
     }
 
-    // Try to generate the image, unless another thread just did it while we
-    // were acquiring the lock.
-    $success = file_exists($derivative_uri) || $image_style->createDerivative($image_uri, $derivative_uri);
-
-    if (!empty($lock_acquired)) {
-      $this->lock->release($lock_name);
-    }
-
-    if ($success) {
-      return $this->redirectToAWS($derivative_public_uri);
+    if ($derivativeExists) {
+      return $this->redirectToAWS($derivativeUri);
     }
     else {
-      $this->logger->notice('Unable to generate the derived image located at %path.', array('%path' => $derivative_uri));
+      $this->logger->notice('Unable to generate the derived image located at %path.', array('%path' => $derivativeUri));
 
       return new Response($this->t('Error generating image.'), 500);
     }
   }
 
+  /**
+   * Redirect the user to aws
+   *
+   * @param $uri
+   *
+   * @return Response
+   */
   private function redirectToAWS($uri) {
     return new Response(NULL, 302, array(
-      'location' => $uri
+      'location'      => file_create_url($uri),
+      'Cache-Control' => 'must-revalidate, no-cache, post-check=0, pre-check=0, private',
+      'Expires'       => 'Sun, 19 Nov 1978 05:00:00 GMT',
     ));
   }
 }

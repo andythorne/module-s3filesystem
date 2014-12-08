@@ -4,6 +4,8 @@ namespace Drupal\s3filesystem\AWS\S3;
 
 use Aws\S3\S3Client;
 use Drupal\Core\Database\SchemaObjectExistsException;
+use Drupal\Core\Database\StatementInterface;
+use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
 
 /**
  * Class DrupalAdaptor
@@ -144,13 +146,13 @@ class DrupalAdaptor {
       try {
         $rows_to_copy = db_select('file_s3filesystem_temp', 's')
           ->fields('s', array(
-              'uri',
-              'filesize',
-              'timestamp',
-              'dir',
-              'mode',
-              'uid'
-            ));
+            'uri',
+            'filesize',
+            'timestamp',
+            'dir',
+            'mode',
+            'uid'
+          ));
 
         // Delete from file_s3filesystem only those rows which match the prefix.
         $delete_query = db_delete('file_s3filesystem')
@@ -193,7 +195,7 @@ class DrupalAdaptor {
    *   An associative array keyed by folder name, which is populated with the
    *   ancestor folders of each file in $file_metadata_list.
    */
-  public function writeMetadata(&$file_metadata_list, &$folders) {
+  protected function writeMetadata(&$file_metadata_list, &$folders) {
     if ($file_metadata_list) {
       $insert_query = db_insert('file_s3filesystem_temp')
         ->fields(array('uri', 'filesize', 'timestamp', 'dir', 'mode', 'uid'));
@@ -260,6 +262,76 @@ class DrupalAdaptor {
     $metadata['mode'] |= 0777;
 
     return $metadata;
+  }
+
+  /**
+   * Fetch an object from the file metadata cache table.
+   *
+   * @param string $uri
+   *   A string containing the uri of the resource to check.
+   *
+   * @return ObjectMetaData|null
+   */
+  public function readCache($uri) {
+    $record = db_select('file_s3filesystem', 's')
+      ->fields('s')
+      ->condition('uri', $uri, '=')
+      ->execute()
+      ->fetchAssoc();
+
+    if ($record) {
+      return ObjectMetaData::fromCache($record);
+    }
+
+    return NULL;
+  }
+
+  /**
+   * Write an object's metadata to the cache.
+   *
+   * @param ObjectMetaData $metadata
+   *
+   * @throws
+   *   Exceptions which occur in the database call will percolate.
+   */
+  public function writeCache(ObjectMetaData $metadata) {
+    db_merge('file_s3filesystem')
+      ->key(array('uri' => $metadata->getUri()))
+      ->fields(array(
+        'filesize'  => $metadata->getSize(),
+        'timestamp' => $metadata->getTimestamp(),
+        'dir'       => $metadata->isDirectory(),
+      ))
+      ->execute();
+  }
+
+  /**
+   * Delete an object's metadata from the cache.
+   *
+   * @param mixed $uri
+   *   A string (or array of strings) containing the URI(s) of the object(s)
+   *   to be deleted.
+   *
+   * @return StatementInterface|null
+   * @throws
+   *   Exceptions which occur in the database call will percolate.
+   */
+  public function deleteCache($uri) {
+    $delete_query = db_delete('file_s3filesystem');
+    $uri = rtrim($uri, '/');
+    if (is_array($uri)) {
+      // Build an OR condition to delete all the URIs in one query.
+      $or = db_or();
+      foreach ($uri as $u) {
+        $or->condition('uri', $u, '=');
+      }
+      $delete_query->condition($or);
+    }
+    else {
+      $delete_query->condition('uri', $uri, '=');
+    }
+
+    return $delete_query->execute();
   }
 
 } 
