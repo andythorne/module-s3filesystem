@@ -1,5 +1,5 @@
 {
-    "name": "ipc/s3filesystem-module",
+    "name": "timeinc/drupal8-s3filesystem",
     "description": "AWS S3 File System module for Drupal 8",
     "type": "drupal-module",
     "license": "GPL-2.0+",
