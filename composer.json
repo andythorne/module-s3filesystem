@@ -5,8 +5,8 @@
     "license": "GPL-2.0+",
     "require": {
         "php": ">=5.4.2",
-        "drupal/core": "~8.0",
-        "aws/aws-sdk-php": "~2.6.16"
+        "drupal/drupal": "~8.0",
+        "aws/aws-sdk-php": "~2.7.17"
     },
     "autoload": {
         "psr-4": {

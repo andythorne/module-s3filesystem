@@ -20,10 +20,5 @@ image.style_s3:
   defaults:
     _controller: Drupal\s3filesystem\Controller\S3FileSystemController::deliver
   requirements:
-    _access: true
-    image_style: .+
+    _access: 'TRUE'
     path: .+
-
-
-route_callbacks:
-  - '\Drupal\s3filesystem\Routing\ImageStyleRoutes::routes'

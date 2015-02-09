@@ -7,10 +7,8 @@ use Aws\S3\Exception\NoSuchBucketException;
 use Aws\S3\Exception\PermanentRedirectException;
 use Aws\S3\Exception\SignatureDoesNotMatchException;
 use Drupal\Core\Config\Config;
-use Drupal\Core\Form\FormBase;
+use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
-use Drupal\Core\Routing\LinkGeneratorTrait;
-use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Url;
 use Drupal\s3filesystem\AWS\S3\ClientFactory;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
@@ -23,27 +21,17 @@ use Drupal\s3filesystem\Exception\S3FileSystemException;
  * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014
  */
-class SettingsAdminForm extends FormBase {
+class SettingsAdminForm extends ConfigFormBase {
 
   /**
-   * @var Config
+   * Gets the configuration names that will be editable.
+   *
+   * @return array
+   *   An array of configuration object names that are editable if called in
+   *   conjunction with the trait's config() method.
    */
-  protected $config;
-
-  /**
-   * @var array
-   */
-  protected $s3Config;
-
-  /**
-   * @var array
-   */
-  protected $awsConfig;
-
-  function __construct() {
-    $this->config    = \Drupal::config('s3filesystem.settings');
-    $this->s3Config  = $this->config->get('s3');
-    $this->awsConfig = $this->config->get('aws');
+  protected function getEditableConfigNames() {
+    return ['s3filesystem.settings'];
   }
 
 
@@ -116,7 +104,7 @@ class SettingsAdminForm extends FormBase {
     }
 
     try {
-      $testConfig = clone $this->config;
+      $testConfig = clone $this->config('s3filesystem.settings');
       $this->hydrateConfiguration($form_state, $testConfig);
       $s3 = ClientFactory::create($testConfig);
 
@@ -159,10 +147,9 @@ class SettingsAdminForm extends FormBase {
    *   The current state of the form.
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
-    $this->hydrateConfiguration($form_state, $this->config);
-    $this->s3Config  = $this->config->get('s3');
-    $this->awsConfig = $this->config->get('aws');
-    $this->config->save();
+    $config = $this->config('s3filesystem.settings');
+    $this->hydrateConfiguration($form_state, $config);
+    $config->save();
   }
 
   /**
@@ -172,10 +159,12 @@ class SettingsAdminForm extends FormBase {
    */
   private function addAWSCredentialsSection(array &$form) {
 
+    $config = $this->config('s3filesystem.settings');
+
     $form['s3filesystem_use_instance_profile'] = array(
       '#type'          => 'checkbox',
       '#title'         => $this->t('Use EC2 Instance Profile Credentials'),
-      '#default_value' => $this->awsConfig['use_instance_profile'],
+      '#default_value' => $config->get('aws.use_instance_profile'),
       '#description'   => $this->t('If your Drupal site is running on an Amazon EC2 server, you may use the Instance Profile Credentials from that server
                                 rather than setting your AWS credentials directly.'),
     );
@@ -183,7 +172,7 @@ class SettingsAdminForm extends FormBase {
     $form['s3filesystem_awssdk2_access_key'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Amazon Web Services Access Key'),
-      '#default_value' => $this->awsConfig['access_key'],
+      '#default_value' => $config->get('aws.access_key'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => FALSE),
@@ -194,7 +183,7 @@ class SettingsAdminForm extends FormBase {
     $form['s3filesystem_awssdk2_secret_key'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Amazon Web Services Secret Key'),
-      '#default_value' => $this->awsConfig['secret_key'],
+      '#default_value' => $config->get('aws.secret_key'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => FALSE),
@@ -206,7 +195,7 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'textfield',
       '#title'         => $this->t('Default Cache Location'),
       '#description'   => $this->t('The default cache location for your EC2 Instance Profile Credentials.'),
-      '#default_value' => $this->awsConfig['default_cache_config'],
+      '#default_value' => $config->get('aws.default_cache_config'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => TRUE),
@@ -231,7 +220,7 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'checkbox',
       '#title'         => $this->t('Enable proxy'),
       '#description'   => $this->t('Enable to connect to AWS via a proxy'),
-      '#default_value' => $this->awsConfig['proxy']['enabled'],
+      '#default_value' => $config->get('aws.proxy.enabled'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => FALSE),
@@ -243,7 +232,7 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'textfield',
       '#title'         => $this->t('Host and Port'),
       '#description'   => $this->t('Use the format hostname:port'),
-      '#default_value' => $this->awsConfig['proxy']['host'],
+      '#default_value' => $config->get('aws.proxy.host'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => TRUE),
@@ -255,7 +244,7 @@ class SettingsAdminForm extends FormBase {
     $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_timeout'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Timeout'),
-      '#default_value' => $this->awsConfig['proxy']['timeout'],
+      '#default_value' => $config->get('aws.proxy.timeout'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => TRUE),
@@ -267,7 +256,7 @@ class SettingsAdminForm extends FormBase {
     $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_connect_timeout'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Connection Timeout'),
-      '#default_value' => $this->awsConfig['proxy']['connect_timeout'],
+      '#default_value' => $config->get('aws.proxy.connect_timeout'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => TRUE),
@@ -284,6 +273,9 @@ class SettingsAdminForm extends FormBase {
    * @param array $form
    */
   private function addS3ConfigSection(array &$form) {
+
+    $config = $this->config('s3filesystem.settings');
+
     $region_map = array(
       ''               => 'Default',
       'us-east-1'      => 'US Standard (us-east-1)',
@@ -299,7 +291,7 @@ class SettingsAdminForm extends FormBase {
     $form['s3filesystem_bucket'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Bucket Name'),
-      '#default_value' => $this->s3Config['bucket'],
+      '#default_value' => $config->get('s3.bucket'),
       '#required'      => TRUE,
     );
 
@@ -307,7 +299,7 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'textfield',
       '#title'         => $this->t('Prefix Key'),
       '#description'   => $this->t('The key prefix is used to limit objects returned from S3 and prepended to URLs.'),
-      '#default_value' => $this->s3Config['keyprefix'],
+      '#default_value' => $config->get('s3.keyprefix'),
       '#required'      => TRUE,
     );
 
@@ -316,7 +308,7 @@ class SettingsAdminForm extends FormBase {
       '#options'       => $region_map,
       '#title'         => $this->t('Region'),
       '#description'   => $this->t('The region in which your bucket resides. Be careful to specify this accurately, as you may see strange behavior if the region is set wrong.'),
-      '#default_value' => $this->s3Config['region'],
+      '#default_value' => $config->get('s3.region'),
     );
 
     $form['s3filesystem_force_https'] = array(
@@ -324,7 +316,7 @@ class SettingsAdminForm extends FormBase {
       '#title'         => $this->t('Always serve files from S3 via HTTPS'),
       '#description'   => $this->t('Forces S3 File System to always generate HTTPS URLs for files in your bucket, e.g. "https://mybucket.s3.amazonaws.com/smiley.jpg".<br>
       Without this setting enabled, URLs for your files will use the same scheme as the page they are served from.'),
-      '#default_value' => $this->s3Config['force_https'],
+      '#default_value' => $config->get('s3.force_https'),
     );
 
     $this->addCustomCDNSection($form);
@@ -339,7 +331,7 @@ class SettingsAdminForm extends FormBase {
       If no timeout is provided, it defaults to 60 seconds.<br>
       <b>This feature does not work when "Enable CNAME" is used.</b>',
         array('!link' => $this->l($this->t('preg_match'), Url::fromUri('http://php.net/preg_match')))),
-      '#default_value' => implode("\n", $this->s3Config['presigned_urls']),
+      '#default_value' => implode("\n", $config->get('s3.presigned_urls')),
       '#rows'          => 5,
     );
 
@@ -350,7 +342,7 @@ class SettingsAdminForm extends FormBase {
       Enter one value per line. e.g. "video/*". Paths use regex patterns as per !link.<br>
       <b>This feature does not work when "Enable CNAME" is used.</b>',
         array('!link' => $this->l($this->t('preg_match'), Url::fromUri('http://php.net/preg_match')))),
-      '#default_value' => implode("\n", $this->s3Config['saveas']),
+      '#default_value' => implode("\n", $config->get('s3.saveas')),
       '#rows'          => 5,
     );
 
@@ -361,7 +353,7 @@ class SettingsAdminForm extends FormBase {
       Enter one value per line, e.g. "big_files/*". Paths use regex patterns as per !link.<br>
       <b>Paths which are already set as Presigned URLs or Forced Save As cannot be delivered as torrents.</b>',
         array('!link' => $this->l($this->t('preg_match'), Url::fromUri('http://php.net/preg_match')))),
-      '#default_value' => implode("\n", $this->s3Config['torrents']),
+      '#default_value' => implode("\n", $config->get('s3.torrents')),
       '#rows'          => 5,
     );
   }
@@ -373,7 +365,9 @@ class SettingsAdminForm extends FormBase {
    * @param array $form
    */
   private function addCustomCDNSection(array &$form) {
-    $customCDN = $this->s3Config['custom_cdn'];
+
+    $config    = $this->config('s3filesystem.settings');
+    $customCDN = $config->get('s3.custom_cdn');
 
     $form['s3filesystem_custom_cdn_settings_fieldset'] = array(
       '#type'  => 'fieldset',
@@ -384,14 +378,14 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'checkbox',
       '#title'         => $this->t('Enable Custom CDN'),
       '#description'   => $this->t('Serve files from a custom domain by using an appropriately named bucket, e.g. "mybucket.mydomain.com".'),
-      '#default_value' => $customCDN['enabled'],
+      '#default_value' => $config->get('s3.custom_cdn.enabled'),
     );
 
     $form['s3filesystem_custom_cdn_settings_fieldset']['s3filesystem_custom_cdn_domain'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('CDN Domain Name'),
       '#description'   => $this->t('If serving files from CloudFront, the bucket name can differ from the domain name.'),
-      '#default_value' => $customCDN['domain'],
+      '#default_value' => $config->get('s3.custom_cdn.domain'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-custom-cdn-enabled]' => array('checked' => TRUE),
@@ -404,7 +398,7 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'checkbox',
       '#title'         => $this->t('CDN over HTTP only'),
       '#description'   => $this->t('Enable if you only want to serve files over the CDN on the http (non-secure) protocol only'),
-      '#default_value' => $customCDN['http_only'],
+      '#default_value' => $config->get('s3.custom_cdn.http_only'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-custom-cdn-enabled]' => array('checked' => TRUE),
@@ -420,7 +414,8 @@ class SettingsAdminForm extends FormBase {
    * @param array $form
    */
   private function addCustomS3HostSection(array &$form) {
-    $customHost = $this->s3Config['custom_host'];
+
+    $config = $this->config('s3filesystem.settings');
 
     $form['s3filesystem_custom_s3_host_settings_fieldset'] = array(
       '#type'  => 'fieldset',
@@ -431,14 +426,14 @@ class SettingsAdminForm extends FormBase {
       '#type'          => 'checkbox',
       '#title'         => $this->t('Use a Custom Host'),
       '#description'   => $this->t('Connect to an S3-compatible storage service other than Amazon.'),
-      '#default_value' => $customHost['enabled'],
+      '#default_value' => $config->get('s3.custom_host.enabled'),
     );
 
     $form['s3filesystem_custom_s3_host_settings_fieldset']['s3filesystem_custom_s3_host_hostname'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Hostname'),
       '#description'   => $this->t('Custom service hostname, e.g. "objects.dreamhost.com".'),
-      '#default_value' => $customHost['hostname'],
+      '#default_value' => $config->get('s3.custom_host.hostname'),
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-custom-s3-host-enabled]' => array('checked' => TRUE),
@@ -449,6 +444,7 @@ class SettingsAdminForm extends FormBase {
 
   private function addS3CacheSection(array &$form) {
 
+    $config = $this->config('s3filesystem.settings');
 
     $form['s3filesystem_cache_settings_fieldset'] = array(
       '#type'  => 'fieldset',
@@ -461,13 +457,13 @@ class SettingsAdminForm extends FormBase {
       '#description'   => $this->t("If you need to debug a problem with S3, you may want to temporarily ignore the file metadata cache.
        This will make all filesystem reads hit S3 instead of the cache.<br>
        <b>This causes s3filesystem to work extremely slowly, and should never be enabled on a production site.</b>"),
-      '#default_value' => $this->s3Config['ignore_cache'],
+      '#default_value' => $config->get('s3.ignore_cache'),
     );
 
     $form['s3filesystem_cache_settings_fieldset']['s3filesystem_refresh_prefix'] = array(
       '#type'          => 'textfield',
       '#title'         => $this->t('Partial Refresh Prefix'),
-      '#default_value' => $this->s3Config['refresh_prefix'],
+      '#default_value' => $config->get('s3.refresh_prefix'),
       '#description'   => $this->t('If you want the "Refresh file metadata cache" action to refresh only some of the contents of your bucket, provide a file path prefix in this field.<br>
       For example, setting this option to "images/" will refresh only the files with a URI that matches s3://images/*. This setting is case sensitive.'),
     );
@@ -501,43 +497,33 @@ class SettingsAdminForm extends FormBase {
    * @param Config             $config
    */
   protected function hydrateConfiguration(FormStateInterface $form_state, Config $config) {
-    $s3Config  = $config->get('s3');
-    $awsConfig = $config->get('aws');
 
-    $s3Config['bucket']         = $form_state->getValue('s3filesystem_bucket');
-    $s3Config['keyprefix']      = $form_state->getValue('s3filesystem_keyprefix');
-    $s3Config['region']         = $form_state->getValue('s3filesystem_region');
-    $s3Config['force_https']    = $form_state->getValue('s3filesystem_force_https');
-    $s3Config['ignore_cache']   = $form_state->getValue('s3filesystem_ignore_cache');
-    $s3Config['refresh_prefix'] = $form_state->getValue('s3filesystem_refresh_prefix');
-    $s3Config['presigned_urls'] = $this->parseTextAreaList($form_state->getValue('s3filesystem_presigned_urls'));
-    $s3Config['saveas']         = $this->parseTextAreaList($form_state->getValue('s3filesystem_saveas'));
-    $s3Config['torrents']       = $this->parseTextAreaList($form_state->getValue('s3filesystem_torrents'));
+    $config->set('s3.bucket', $form_state->getValue('s3filesystem_bucket'));
+    $config->set('s3.keyprefix', $form_state->getValue('s3filesystem_keyprefix'));
+    $config->set('s3.region', $form_state->getValue('s3filesystem_region'));
+    $config->set('s3.force_https', $form_state->getValue('s3filesystem_force_https'));
+    $config->set('s3.ignore_cache', $form_state->getValue('s3filesystem_ignore_cache'));
+    $config->set('s3.refresh_prefix', $form_state->getValue('s3filesystem_refresh_prefix'));
+    $config->set('s3.presigned_urls', $this->parseTextAreaList($form_state->getValue('s3filesystem_presigned_urls')));
+    $config->set('s3.saveas', $this->parseTextAreaList($form_state->getValue('s3filesystem_saveas')));
+    $config->set('s3.torrents', $this->parseTextAreaList($form_state->getValue('s3filesystem_torrents')));
 
-    $s3Config['custom_s3_host'] = array(
-      'enabled'  => $form_state->getValue('s3filesystem_custom_s3_host_enabled'),
-      'hostname' => $form_state->getValue('s3filesystem_custom_s3_host_hostname'),
-    );
+    $config->set('s3.custom_s3_host.enabled', $form_state->getValue('s3filesystem_custom_s3_host_enabled'));
+    $config->set('s3.custom_s3_host.enabled', $form_state->getValue('s3filesystem_custom_s3_host_hostname'));
 
-    $s3Config['custom_cdn'] = array(
-      'enabled'   => $form_state->getValue('s3filesystem_custom_cdn_enabled'),
-      'domain'    => $form_state->getValue('s3filesystem_custom_cdn_domain'),
-      'http_only' => $form_state->getValue('s3filesystem_custom_cdn_http_only'),
-    );
+    $config->set('s3.custom_cdn.enabled', $form_state->getValue('s3filesystem_custom_cdn_enabled'));
+    $config->set('s3.custom_cdn.domain', $form_state->getValue('s3filesystem_custom_cdn_domain'));
+    $config->set('s3.custom_cdn.http_only', $form_state->getValue('s3filesystem_custom_cdn_http_only'));
 
-    $awsConfig['use_instance_profile'] = $form_state->getValue('s3filesystem_use_instance_profile');
-    $awsConfig['default_cache_config'] = $form_state->getValue('s3filesystem_awssdk2_default_cache_config');
-    $awsConfig['access_key']           = $form_state->getValue('s3filesystem_awssdk2_access_key');
-    $awsConfig['secret_key']           = $form_state->getValue('s3filesystem_awssdk2_secret_key');
+    $config->set('aws.use_instance_profile', $form_state->getValue('s3filesystem_use_instance_profile'));
+    $config->set('aws.default_cache_config', $form_state->getValue('s3filesystem_awssdk2_default_cache_config'));
+    $config->set('aws.access_key', $form_state->getValue('s3filesystem_awssdk2_access_key'));
+    $config->set('aws.secret_key', $form_state->getValue('s3filesystem_awssdk2_secret_key'));
 
-    $awsConfig['proxy'] = array(
-      'enabled'         => (bool) $form_state->getValue('s3filesystem_awssdk2_proxy_enabled'),
-      'host'            => $form_state->getValue('s3filesystem_awssdk2_proxy_host'),
-      'connect_timeout' => (int) $form_state->getValue('s3filesystem_awssdk2_proxy_connect_timeout'),
-      'timeout'         => (int) $form_state->getValue('s3filesystem_awssdk2_proxy_timeout'),
-    );
+    $config->set('aws.proxy.enabled', (bool) $form_state->getValue('s3filesystem_awssdk2_proxy_enabled'));
+    $config->set('aws.proxy.host', $form_state->getValue('s3filesystem_awssdk2_proxy_host'));
+    $config->set('aws.proxy.connect_timeout', (int) $form_state->getValue('s3filesystem_awssdk2_proxy_connect_timeout'));
+    $config->set('aws.proxy.timeout', (int) $form_state->getValue('s3filesystem_awssdk2_proxy_timeout'));
 
-    $config->set('s3', $s3Config);
-    $config->set('aws', $awsConfig);
   }
 } 

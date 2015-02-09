@@ -93,8 +93,6 @@ class S3FileSystemController extends ControllerBase {
 
       $derivativeExists = $image_style->createDerivative($imageUri, $derivativeUri);
 
-
-var_dump($derivativeExists, is_dir("s3://styles/large/s3"), file_exists($derivativeExists), $imageUri, $derivativeUri);
       $this->lock->release($lockName);
     }
 
