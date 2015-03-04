@@ -421,8 +421,8 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    *
    * {@inheritdoc}
    */
-  public function rmdir($path) {
-    $return = parent::rmdir($path);
+  public function rmdir($path, $options){
+    $return = parent::rmdir($path, $options);
 
     // flush cache of deleted files
     $sqlPath = trim($path, '/') . '/';
