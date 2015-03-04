@@ -149,7 +149,7 @@ interface DrupalS3StreamWrapperInterface
   public function unlink($uri);
   public function rename($from_uri, $to_uri);
   public function mkdir($uri, $mode, $options);
-  public function rmdir($uri);
+  public function rmdir($path, $options);
   public function url_stat($uri, $flags);
   public function dir_opendir($uri, $options);
   public function dir_readdir();
