@@ -517,13 +517,21 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    */
   public function rename($path_from, $path_to) {
     $return = parent::rename($path_from, $path_to);
+    if(!$return)
+    {
+      return false;
+    }
 
     // update the meta cache
     $metadata = $this->drupalAdaptor->readCache($path_from);
+    if(!$metadata){
+      return false;
+    }
+
     $metadata->setUri($path_to);
     $this->drupalAdaptor->writeCache($metadata);
 
-    return $return;
+    return true;
   }
 
   /**
