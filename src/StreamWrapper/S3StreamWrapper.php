@@ -5,7 +5,7 @@ namespace Drupal\s3filesystem\StreamWrapper;
 use Aws\S3\Exception\NoSuchKeyException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\StreamWrapper;
-use Drupal\Component\Utility\String;
+use Drupal\Component\Utility\SafeMarkup;
 use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Config\Config;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
@@ -250,7 +250,7 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
       $request     = \Drupal::request();
 
       if ($cdnDomain && (!$cdnHttpOnly || ($cdnHttpOnly && !$request->isSecure()))) {
-        $domain = String::checkPlain(UrlHelper::stripDangerousProtocols($cdnDomain));
+        $domain = SafeMarkup::checkPlain(UrlHelper::stripDangerousProtocols($cdnDomain));
         if (!$domain) {
           throw new S3FileSystemException($this->t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
         }

@@ -93,6 +93,11 @@ function s3filesystem_schema() {
   $schema['file_s3filesystem'] = array(
     'description' => 'Stores metadata about files in the S3 File System.',
     'fields'      => array(
+      'fid'       => array(
+        'description' => 'The S3 ID.',
+        'type'        => 'serial',
+        'not null'    => TRUE,
+      ),
       'uri'       => array(
         'description' => 'The S3 URI of the file.',
         'type'        => 'varchar',
@@ -124,8 +129,9 @@ function s3filesystem_schema() {
     ),
     'indexes'     => array(
       'timestamp' => array('timestamp'),
+      'uri' => array('uri'),
     ),
-    'primary key' => array('uri'),
+    'primary key' => array('fid'),
     'collation'   => 'utf8_bin',
   );
 
