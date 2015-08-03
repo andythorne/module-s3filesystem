@@ -209,11 +209,6 @@ class SettingsAdminForm extends ConfigFormBase {
       '#title'       => $this->t('Proxy Settings'),
       '#collapsible' => TRUE,
       '#collapsed'   => FALSE,
-      '#states'      => array(
-        'visible' => array(
-          ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => FALSE),
-        ),
-      ),
     );
 
     $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_enabled'] = array(
@@ -221,11 +216,6 @@ class SettingsAdminForm extends ConfigFormBase {
       '#title'         => $this->t('Enable proxy'),
       '#description'   => $this->t('Enable to connect to AWS via a proxy'),
       '#default_value' => $config->get('aws.proxy.enabled'),
-      '#states'        => array(
-        'visible' => array(
-          ':input[id=edit-s3filesystem-use-instance-profile]' => array('checked' => FALSE),
-        ),
-      ),
     );
 
     $form['s3filesystem_proxy']['s3filesystem_awssdk2_proxy_host'] = array(
@@ -236,7 +226,6 @@ class SettingsAdminForm extends ConfigFormBase {
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => TRUE),
-          ':input[id=edit-s3filesystem-use-instance-profile]'  => array('checked' => FALSE),
         ),
       ),
     );
@@ -248,7 +237,6 @@ class SettingsAdminForm extends ConfigFormBase {
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => TRUE),
-          ':input[id=edit-s3filesystem-use-instance-profile]'  => array('checked' => FALSE),
         ),
       ),
     );
@@ -260,7 +248,6 @@ class SettingsAdminForm extends ConfigFormBase {
       '#states'        => array(
         'visible' => array(
           ':input[id=edit-s3filesystem-awssdk2-proxy-enabled]' => array('checked' => TRUE),
-          ':input[id=edit-s3filesystem-use-instance-profile]'  => array('checked' => FALSE),
         ),
       ),
     );
