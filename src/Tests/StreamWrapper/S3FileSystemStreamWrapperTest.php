@@ -228,7 +228,7 @@ namespace Drupal\S3FileSystem\Tests\StreamWrapper {
         ->will($this->returnCallback(function ($route, $params) use ($phpunit) {
           $phpunit->assertEquals('image.style_s3', $route);
           $phpunit->assertArrayHasKey('image_style', $params);
-          $phpunit->assertArrayHasKey('path', $params);
+          $phpunit->assertArrayHasKey('file', $params);
 
           return '/s3/files/' . $params['image_style'] . '/' . $params['path'];
         }));

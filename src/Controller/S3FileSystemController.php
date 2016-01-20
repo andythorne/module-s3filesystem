@@ -4,12 +4,14 @@ namespace Drupal\s3filesystem\Controller;
 
 use Drupal\Component\Utility\Crypt;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\Lock\LockBackendInterface;
 use Drupal\image\ImageStyleInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\ServiceUnavailableHttpException;
 
 /**
@@ -37,6 +39,11 @@ class S3FileSystemController extends ControllerBase {
   protected $logger;
 
   /**
+   * @var Connection
+   */
+  protected $database;
+
+  /**
    * Constructs a ImageStyleDownloadController object.
    *
    * @param \Drupal\Core\Lock\LockBackendInterface $lock
@@ -44,9 +51,10 @@ class S3FileSystemController extends ControllerBase {
    * @param \Psr\Log\LoggerInterface               $logger
    *   A logger instance.
    */
-  public function __construct(LockBackendInterface $lock, LoggerInterface $logger) {
-    $this->lock   = $lock;
-    $this->logger = $logger;
+  public function __construct(LockBackendInterface $lock, LoggerInterface $logger, Connection $database) {
+    $this->lock     = $lock;
+    $this->logger   = $logger;
+    $this->database = $database;
   }
 
   /**
@@ -55,22 +63,25 @@ class S3FileSystemController extends ControllerBase {
   public static function create(ContainerInterface $container) {
     return new static(
       $container->get('lock'),
-      $container->get('logger.factory')->get('s3filesystem')
+      $container->get('logger.factory')->get('s3filesystem'),
+      $container->get('database')
     );
   }
 
-  public function deliver(Request $request, ImageStyleInterface $image_style, $path) {
-    $parts  = explode('/', $path);
-    $scheme = array_shift($parts);
-    $s3Path = implode('/', $parts);
+  public function deliver(Request $request, ImageStyleInterface $image_style) {
+    $s3Path = $request->query->get('file');
 
-    $imageUri = "{$scheme}://{$s3Path}";
+    if (!$s3Path) {
+      throw new HttpException(500, 'file parameter must be supplied');
+    }
+
+    $imageUri = "s3://{$s3Path}";
 
     // check the base image exists in the cache table. If we have no base image,
     // check s3 (via file_exists). If s3 has no image, 404.
-    $row = db_select('{file_s3filesystem}', 'f')
-      ->fields('f', array('uri'))
-      ->where('uri = ? AND dir = 0', array($imageUri))
+    $row = $this->database->select('{file_s3filesystem}', 'f')
+      ->fields('f', ['uri'])
+      ->where('uri = ? AND dir = 0', [$imageUri])
       ->execute();
 
     if ((!$image = $row->fetchAssoc()) && !file_exists($imageUri)) {
@@ -83,7 +94,7 @@ class S3FileSystemController extends ControllerBase {
     // Don't start generating the image if the derivative already exists or if
     // generation is in progress in another thread.
     if (!$derivativeExists) {
-      $lockName     = 'image_style_deliver:' . $path . ':' . Crypt::hashBase64($imageUri);
+      $lockName     = 'image_style_deliver:' . $s3Path . ':' . Crypt::hashBase64($imageUri);
       $lockAcquired = $this->lock->acquire($lockName);
       if (!$lockAcquired) {
         // Tell client to retry again in 3 seconds. Currently no browsers are
@@ -100,7 +111,7 @@ class S3FileSystemController extends ControllerBase {
       return $this->redirectToAWS($derivativeUri);
     }
     else {
-      $this->logger->notice('Unable to generate the derived image located at %path.', array('%path' => $derivativeUri));
+      $this->logger->notice('Unable to generate the derived image located at %path.', ['%path' => $derivativeUri]);
 
       return new Response($this->t('Error generating image.'), 500);
     }
@@ -114,10 +125,12 @@ class S3FileSystemController extends ControllerBase {
    * @return Response
    */
   private function redirectToAWS($uri) {
-    return new Response(NULL, 302, array(
-      'location'      => file_create_url($uri),
-      'Cache-Control' => 'must-revalidate, no-cache, post-check=0, pre-check=0, private',
-      'Expires'       => 'Sun, 19 Nov 1978 05:00:00 GMT',
-    ));
+    return new Response(
+      NULL, 302, [
+        'location'      => file_create_url($uri),
+        'Cache-Control' => 'must-revalidate, no-cache, post-check=0, pre-check=0, private',
+        'Expires'       => 'Sun, 19 Nov 1978 05:00:00 GMT',
+      ]
+    );
   }
 }

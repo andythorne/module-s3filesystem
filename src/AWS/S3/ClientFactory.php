@@ -4,9 +4,6 @@ namespace Drupal\s3filesystem\AWS\S3;
 
 use Aws\S3\S3Client;
 use Drupal\Core\Config\Config;
-use Drupal\Core\Link;
-use Drupal\s3filesystem\Exception\AWS\S3\AwsClientNotFoundException;
-use Drupal\s3filesystem\Exception\AWS\S3\AwsCredentialsInvalidException;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
 
 /**
@@ -34,27 +31,29 @@ class ClientFactory {
     $default_cache_config = $s3filesystemConfig->get('aws.default_cache_config');
 
     // Create and configure the S3Client object.
-    $config = array();
+    $config = [
+      'region'  => $s3filesystemConfig->get('s3.region'),
+      'version' => 'latest',
+    ];
     if ($use_instance_profile) {
       $config['default_cache_config'] = $default_cache_config;
     }
     else {
-      $config['key']    = $access_key;
-      $config['secret'] = $secret_key;
+      $config['credentials'] = [
+        'key'    => $access_key,
+        'secret' => $secret_key,
+      ];
     }
 
     if ($s3filesystemConfig->get('aws.proxy.enabled')) {
-      $config['request.options'] = array(
+      $config['request.options'] = [
         'proxy'           => $s3filesystemConfig->get('aws.proxy.host'),
         'timeout'         => $s3filesystemConfig->get('aws.proxy.timeout'),
         'connect_timeout' => $s3filesystemConfig->get('aws.proxy.connect_timeout')
-      );
+      ];
     }
 
-    $s3 = S3Client::factory($config);
-    if ($s3filesystemConfig->get('s3.region')) {
-      $s3->setRegion($s3filesystemConfig->get('s3.region'));
-    }
+    $s3 = new S3Client($config);
 
     if ($s3filesystemConfig->get('s3.custom_host.enabled') && $s3filesystemConfig->get('s3.custom_host.hostname')) {
       $s3->setBaseURL($s3filesystemConfig->get('s3.custom_host.hostname'));

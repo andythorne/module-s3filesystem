@@ -2,19 +2,20 @@
 
 namespace Drupal\s3filesystem\StreamWrapper;
 
+use Aws\Result;
 use Aws\S3\Exception\NoSuchKeyException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\StreamWrapper;
-use Drupal\Component\Utility\SafeMarkup;
+use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\UrlHelper;
 use Drupal\Core\Config\Config;
+use Drupal\Core\Database\Connection;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
+use Drupal\Core\Url;
 use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
 use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
-use Drupal\s3filesystem\StreamWrapper\Body\S3SeekableCachingEntityBody;
-use Guzzle\Service\Resource\Model;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -22,14 +23,9 @@ use Psr\Log\LoggerInterface;
  *
  * @package Drupal\s3filesystem\StreamWrapper
  */
-class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInterface {
+class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
 
   use StringTranslationTrait;
-
-  /**
-   * @var S3SeekableCachingEntityBody
-   */
-  public $body;
 
   /**
    * @var string
@@ -54,6 +50,11 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
   protected $drupalAdaptor;
 
   /**
+   * @var Connection
+   */
+  protected $database;
+
+  /**
    * Stream wrapper constructor.
    *
    * Creates the Aws\S3\S3Client client object and activates the options
@@ -67,23 +68,33 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
     $this->setUp(
       \Drupal::service('s3filesystem.client'),
       \Drupal::config('s3filesystem.settings'),
-      \Drupal::logger('s3filesystem')
+      \Drupal::logger('s3filesystem'),
+      \Drupal::database()
     );
   }
 
   /**
    * Set up the StreamWrapper
    *
-   * @param DrupalAdaptor   $drupalAdaptor
-   * @param Config          $config
-   * @param LoggerInterface $logger
+   * @param DrupalAdaptor                    $drupalAdaptor
+   * @param Config                           $config
+   * @param LoggerInterface                  $logger
+   * @param \Drupal\Core\Database\Connection $database
    */
-  public function setUp(DrupalAdaptor $drupalAdaptor, Config $config, LoggerInterface $logger = NULL) {
+  public function setUp(DrupalAdaptor $drupalAdaptor, Config $config, LoggerInterface $logger = NULL, Connection $database) {
     $this->drupalAdaptor = $drupalAdaptor;
     $this->config        = $config;
     $this->logger        = $logger;
+    $this->database      = $database;
 
-    $this->register($this->drupalAdaptor->getS3Client());
+    $protocol = 's3';
+    $this->register($this->drupalAdaptor->getS3Client(), $protocol);
+
+    $default                   = stream_context_get_options(stream_context_get_default());
+    $default['ACL']            = 'public-read';
+    $default[$protocol]['ACL'] = 'public-read';
+//    $default[$protocol]['Bucket'] = $this->config->get('s3.bucket');
+    stream_context_set_default($default);
   }
 
 
@@ -159,6 +170,20 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
   }
 
   /**
+   * {@inheritdoc}
+   */
+  public function stream_set_option($option, $arg1, $arg2) {
+    return FALSE;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function stream_truncate($new_size) {
+    return FALSE;
+  }
+
+  /**
    * Not Supporeted in S3
    *
    * {@inheritdoc}
@@ -191,13 +216,15 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
     $path_parts = explode('/', $s3_filename);
     if ($path_parts[0] == 'styles') {
       if (!file_exists($this->uri)) {
-        list(, $imageStyle) = array_splice($path_parts, 0, 2);
+        list(, $imageStyle, $scheme) = array_splice($path_parts, 0, 3);
 
-        return \Drupal::urlGenerator()
-          ->generateFromRoute('image.style_s3', array(
+        return Url::fromRoute(
+          'image.style_s3',
+          [
             'image_style' => $imageStyle,
-            'path'        => implode('/', $path_parts),
-          ));
+            'file'        => implode('/', $path_parts),
+          ]
+        )->toString();
       }
     }
 
@@ -211,13 +238,13 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
     }
 
     // Set up the URL settings from the Settings page.
-    $url_settings = array(
+    $url_settings = [
       'torrent'       => FALSE,
       'presigned_url' => FALSE,
       'timeout'       => 60,
       'forced_saveas' => FALSE,
-      'api_args'      => array('Scheme' => $this->config->get('s3.force_https') ? 'https' : 'http'),
-    );
+      'api_args'      => ['Scheme' => $this->config->get('s3.force_https') ? 'https' : 'http'],
+    ];
 
     // Presigned URLs.
     foreach ($this->config->get('s3.presigned_urls') as $line) {
@@ -250,7 +277,7 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
       $request     = \Drupal::request();
 
       if ($cdnDomain && (!$cdnHttpOnly || ($cdnHttpOnly && !$request->isSecure()))) {
-        $domain = SafeMarkup::checkPlain(UrlHelper::stripDangerousProtocols($cdnDomain));
+        $domain = Html::escape(UrlHelper::stripDangerousProtocols($cdnDomain));
         if (!$domain) {
           throw new S3FileSystemException($this->t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
         }
@@ -263,7 +290,7 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
         $cdnDomain = "$scheme://$domain";
       }
 
-      $url = "{$cdnDomain}/{$this->prefixPath($s3_filename)}";
+      $url = "{$cdnDomain}/{$this->prefixPath($s3_filename, FALSE)}";
     }
     else {
       $expires = NULL;
@@ -284,7 +311,10 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
         }
       }
 
-      $url = self::$client->getObjectUrl($this->config->get('s3.bucket'), $this->prefixPath($s3_filename), $expires, $url_settings['api_args']);
+      $url = $this->drupalAdaptor->getS3Client()->getObjectUrl(
+        $this->config->get('s3.bucket'),
+        $this->prefixPath($s3_filename, FALSE, FALSE)
+      );
     }
 
     // Torrents can only be created for publicly-accessible files:
@@ -311,37 +341,47 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    * @return ObjectMetaData|false
    */
   protected function fetchMetaData($uri) {
-    $params = $this->getParams($uri);
+
+    list($scheme, $path) = explode('://', $uri);
+    $params = [
+      'Bucket' => $this->config->get('s3.bucket'),
+      'Key'    => $this->prefixPath($path, FALSE, FALSE)
+    ];
 
     try {
-      /** @var Model $result */
-      $result = self::$client->headObject($params);
+      $result = $this->drupalAdaptor->getS3Client()->headObject($params);
 
-      if ($result) {
-        $resultObjectMeta = new ObjectMetaData($uri, $result->toArray());
+      if ($result instanceof Result) {
+        if ((int) $result->get('ContentLength') === 0 && ($path === '' || substr($path, -1) === '/')) {
+          $meta = [
+            'Directory' => TRUE,
+          ];
+        }
+        else {
+          $meta = $result->toArray();
+        }
+        $resultObjectMeta = new ObjectMetaData($uri, $meta);
         $this->drupalAdaptor->writeCache($resultObjectMeta);
 
         return $resultObjectMeta;
       }
-    }
-    catch(NoSuchKeyException $e) {
+    } catch (S3Exception $e) {
       // Maybe this isn't an actual key, but a prefix. Do a prefix listing of objects to determine.
-      $result = static::$client->listObjects(array(
-        'Bucket'  => $params['Bucket'],
-        'Prefix'  => rtrim($params['Key'], '/') . '/',
-        'MaxKeys' => 1
-      ));
+      $params['Prefix']  = rtrim($params['Key'], '/') . '/';
+      $params['Key']     = NULL;
+      $params['MaxKeys'] = 1;
+
+      $result = $this->drupalAdaptor->getS3Client()->listObjects($params);
       if (isset($result['Contents']) && count($result['Contents']) === 1) {
-        $resultObjectMeta = new ObjectMetaData($uri, array(
-          'Directory' => TRUE,
-        ));
+        $resultObjectMeta = new ObjectMetaData(
+          $uri, [
+            'Directory' => TRUE,
+          ]
+        );
         $this->drupalAdaptor->writeCache($resultObjectMeta);
 
         return $resultObjectMeta;
       }
-    }
-    catch(S3Exception $e) {
-      // ignore any other S3 error
     }
 
     return FALSE;
@@ -372,48 +412,6 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
   }
 
   /**
-   * Inject the ACL permission into the stream options
-   *
-   * @codeCoverageIgnore
-   *
-   * {@inheritdoc}
-   */
-  protected function getOptions() {
-    $options        = parent::getOptions();
-    $options['ACL'] = 'public-read';
-
-    return $options;
-  }
-
-
-  /**
-   * @codeCoverageIgnore
-   *
-   * {@inheritdoc}
-   */
-  protected function getParams($path) {
-    $params = $this->getOptions();
-
-    $filename = str_replace('s3://', '', $path);
-    if (strpos($filename, $this->config->get('s3.keyprefix')) === FALSE) {
-      $filename = rtrim($this->config->get('s3.keyprefix'), '/') . '/' . $filename;
-    }
-
-    // Remove both leading and trailing /s. S3 filenames never start with /,
-    // and a $uri for a folder might be specified with a trailing /, which
-    // we'd need to remove to be able to retrieve it from the cache.
-    $s3path = trim($filename, '/');
-
-    unset($params['seekable']);
-    unset($params['throw_exceptions']);
-
-    return array(
-      'Bucket' => $this->config->get('s3.bucket'),
-      'Key'    => $s3path
-    ) + $params;
-  }
-
-  /**
    * AWS SDK StreamWrapper does not implement the rmdir method correctly.
    * It also clears the caching table of removed objects/paths.
    *
@@ -421,37 +419,19 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    *
    * {@inheritdoc}
    */
-  public function rmdir($path, $options){
+  public function rmdir($path, $options) {
     $return = parent::rmdir($path, $options);
 
     // flush cache of deleted files
     $sqlPath = trim($path, '/') . '/';
-    $files   = db_select('file_s3filesystem', 's')
+    $files   = $this->database->select('file_s3filesystem', 's')
       ->fields('s')
-      ->condition('uri', db_like($sqlPath) . '%', 'LIKE')
+      ->condition('uri', $this->database->escapeLike($sqlPath) . '%', 'LIKE')
       ->execute()
       ->fetchAllKeyed();
     $this->drupalAdaptor->deleteCache($files);
 
     return $return;
-  }
-
-
-  /**
-   * We need to be able to fetch to the end of the file for image size reading.
-   * By default, the AWS SDK does not do this. See github issue for more detail.
-   *
-   * @see https://github.com/aws/aws-sdk-php/issues/192
-   *
-   * @codeCoverageIgnore
-   *
-   * {@inheritdoc}
-   */
-  protected function openReadStream(array $params, array &$errors) {
-    $r          = parent::openReadStream($params, $errors);
-    $this->body = new S3SeekableCachingEntityBody($this->body);
-
-    return $r;
   }
 
   /**
@@ -463,10 +443,10 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    */
   public function stream_open($path, $mode, $options, &$opened_path) {
     $this->uri = $path;
+    $path      = $this->prefixPath($path);
 
     return parent::stream_open($path, $mode, $options, $opened_path);
   }
-
 
   /**
    * Write cache after a flush
@@ -478,7 +458,16 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
   public function stream_flush() {
     $return = parent::stream_flush();
 
-    self::$client->waitUntilObjectExists($this->params);
+    $pathParts = explode('/', $this->uri);
+    array_splice($pathParts, 0, 2);
+    $this->drupalAdaptor->getS3Client()->waitUntil(
+      'ObjectExists',
+      [
+        'Bucket' => $this->config->get('s3.bucket'),
+        'Key' => $this->prefixPath(implode('/', $pathParts), false, false),
+      ]
+    );
+
     $this->fetchMetaData($this->uri);
 
     return $return;
@@ -489,15 +478,17 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    */
   public function url_stat($path, $flags) {
     // check the cache
+    $this->uri = $path;
+    $path      = $this->prefixPath($path);
 
-    $cache = $this->drupalAdaptor->readCache($path);
+    $cache = $this->drupalAdaptor->readCache($this->uri);
     if ($cache instanceof ObjectMetaData) {
       $args = $cache->isDirectory() ? NULL : $cache->getMeta();
       $stat = $this->formatUrlStat($args);
     }
     else {
       // check the remote server
-      $remote = $this->fetchMetaData($path);
+      $remote = $this->fetchMetaData($this->uri);
       if ($remote instanceof ObjectMetaData) {
         $args = $remote->isDirectory() ? NULL : $remote->getMeta();
         $stat = $this->formatUrlStat($args);
@@ -517,21 +508,20 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
    */
   public function rename($path_from, $path_to) {
     $return = parent::rename($path_from, $path_to);
-    if(!$return)
-    {
-      return false;
+    if (!$return) {
+      return FALSE;
     }
 
     // update the meta cache
     $metadata = $this->drupalAdaptor->readCache($path_from);
-    if(!$metadata){
-      return false;
+    if (!$metadata) {
+      return FALSE;
     }
 
     $metadata->setUri($path_to);
     $this->drupalAdaptor->writeCache($metadata);
 
-    return true;
+    return TRUE;
   }
 
   /**
@@ -558,26 +548,110 @@ class S3StreamWrapper extends StreamWrapper implements DrupalS3StreamWrapperInte
   protected function triggerError($errors, $flags = NULL) {
     $this->logger->error($errors);
 
-    return parent::triggerError($errors, $flags);
+    // This is triggered with things like file_exists()
+    if ($flags & STREAM_URL_STAT_QUIET) {
+      return $flags & STREAM_URL_STAT_LINK
+        // This is triggered for things like is_link()
+        ? $this->formatUrlStat(FALSE)
+        : FALSE;
+    }
+
+    // This is triggered when doing things like lstat() or stat()
+    trigger_error(implode("\n", (array) $errors), E_USER_WARNING);
+
+    return FALSE;
   }
 
   /**
    * Prefix a path with
    *
-   * @param $path
+   * @param string $path
+   * @param bool   $includeStream
+   * @param bool   $includeBucket
    *
    * @return string
    */
-  protected function prefixPath($path) {
+  protected function prefixPath($path, $includeStream = TRUE, $includeBucket = TRUE) {
     if (strpos($path, 's3://') === 0) {
       $path = str_replace('s3://', '', $path);
     }
 
-    $keyPrefix = $this->config->get('s3.keyprefix') ? trim($this->config->get('s3.keyprefix'), '/') . '/' : '';
-    if (strpos($path, $keyPrefix) === FALSE) {
-      $path = $keyPrefix . $path;
+    if (strpos($path, $this->config->get('s3.keyprefix')) === FALSE) {
+      $path = rtrim($this->config->get('s3.keyprefix'), '/') . '/' . $path;
+    }
+
+    if ($includeBucket && strpos($path, $this->config->get('s3.bucket')) === FALSE) {
+      $path = rtrim($this->config->get('s3.bucket'), '/') . '/' . $path;
+    }
+
+    if ($includeStream) {
+      $path = 's3://' . $path;
     }
 
     return $path;
+  }
+
+  /**
+   * Gets a URL stat template with default values
+   *
+   * @return array
+   */
+  private function getStatTemplate() {
+    return [
+      0         => 0,
+      'dev'     => 0,
+      1         => 0,
+      'ino'     => 0,
+      2         => 0,
+      'mode'    => 0,
+      3         => 0,
+      'nlink'   => 0,
+      4         => 0,
+      'uid'     => 0,
+      5         => 0,
+      'gid'     => 0,
+      6         => -1,
+      'rdev'    => -1,
+      7         => 0,
+      'size'    => 0,
+      8         => 0,
+      'atime'   => 0,
+      9         => 0,
+      'mtime'   => 0,
+      10        => 0,
+      'ctime'   => 0,
+      11        => -1,
+      'blksize' => -1,
+      12        => -1,
+      'blocks'  => -1,
+    ];
+  }
+
+  private function formatUrlStat($result = NULL) {
+    $stat = $this->getStatTemplate();
+    switch (gettype($result)) {
+      case 'NULL':
+      case 'string':
+        // Directory with 0777 access - see "man 2 stat".
+        $stat['mode'] = $stat[2] = 0040777;
+        break;
+      case 'array':
+        // Regular file with 0777 access - see "man 2 stat".
+        $stat['mode'] = $stat[2] = 0100777;
+        // Pluck the content-length if available.
+        if (isset($result['ContentLength'])) {
+          $stat['size'] = $stat[7] = $result['ContentLength'];
+        }
+        elseif (isset($result['Size'])) {
+          $stat['size'] = $stat[7] = $result['Size'];
+        }
+        if (isset($result['LastModified'])) {
+          // ListObjects or HeadObject result
+          $stat['mtime'] = $stat[9] = $stat['ctime'] = $stat[10]
+            = strtotime($result['LastModified']);
+        }
+    }
+
+    return $stat;
   }
 } 

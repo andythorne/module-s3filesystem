@@ -9,6 +9,9 @@ services:
   s3filesystem.stream_wrapper:
     #class: %s3filesystem.stream_wrapper.class%
     class: %s3filesystem.stream_wrapper.class%
+    arguments:
+      - @s3filesystem.aws_client
+
     tags:
       - { name: stream_wrapper, scheme: s3 }
 
