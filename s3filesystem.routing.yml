@@ -16,9 +16,8 @@ s3filesystem.actions:
     _permission: 'administer s3filesystem'
 
 image.style_s3:
-  path: /s3/files/styles/{image_style}/{path}
+  path: '/s3/files/styles/{image_style}'
   defaults:
     _controller: Drupal\s3filesystem\Controller\S3FileSystemController::deliver
   requirements:
     _access: 'TRUE'
-    path: .+
