@@ -290,7 +290,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
         $cdnDomain = "$scheme://$domain";
       }
 
-      $url = "{$cdnDomain}/{$this->prefixPath($s3_filename, FALSE)}";
+      $url = "{$cdnDomain}/{$this->prefixPath($s3_filename, FALSE, FALSE)}";
     }
     else {
       $expires = NULL;
