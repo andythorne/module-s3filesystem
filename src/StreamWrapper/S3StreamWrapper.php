@@ -91,9 +91,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
     $this->register($this->drupalAdaptor->getS3Client(), $protocol);
 
     $default                   = stream_context_get_options(stream_context_get_default());
-    $default['ACL']            = 'public-read';
     $default[$protocol]['ACL'] = 'public-read';
-//    $default[$protocol]['Bucket'] = $this->config->get('s3.bucket');
     stream_context_set_default($default);
   }
 
