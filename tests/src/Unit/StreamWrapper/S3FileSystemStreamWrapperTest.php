@@ -1,12 +1,12 @@
 <?php
 
-namespace Drupal\s3filesystem\StreamWrapper {
+namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
   function file_exists() {
     return FALSE;
   }
 }
 
-namespace Drupal\S3FileSystem\Tests\StreamWrapper {
+namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 
   use Drupal\Core\StreamWrapper\StreamWrapperInterface;
   use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
@@ -21,12 +21,7 @@ namespace Drupal\S3FileSystem\Tests\StreamWrapper {
   /**
    * Class S3FileSystemStreamWrapperTest
    *
-   * @author      Andy Thorne <andy.thorne@timeinc.com>
-   * @copyright   Time Inc (UK) 2014
-   *
-   * @name        S3FileSystem
-   * @group       Ensure that the remote file system functionality provided by S3 File System works correctly.
-   * @description S3 File System
+   * @group s3filesystem
    */
   class S3FileSystemStreamWrapperTest extends UnitTestCase {
 
@@ -138,11 +133,16 @@ namespace Drupal\S3FileSystem\Tests\StreamWrapper {
           return 'region.amazonaws.com/' . $key;
         }));
 
+      $db = $this->getMockBuilder('\Drupal\Core\Database\Connection')
+        ->disableOriginalConstructor()
+        ->getMock();
+
       /** @var $wrapper S3StreamWrapper */
       $wrapper->setUp(
         $this->drupalAdaptor,
         $config,
-        new NullLogger()
+        new NullLogger(),
+        $db
       );
 
       return $wrapper;
@@ -230,7 +230,7 @@ namespace Drupal\S3FileSystem\Tests\StreamWrapper {
           $phpunit->assertArrayHasKey('image_style', $params);
           $phpunit->assertArrayHasKey('file', $params);
 
-          return '/s3/files/' . $params['image_style'] . '/' . $params['path'];
+          return '/s3/files/' . $params['image_style'] . '?file=' . $params['path'];
         }));
       $this->setMockContainerService('url_generator', $urlGenerator);
 

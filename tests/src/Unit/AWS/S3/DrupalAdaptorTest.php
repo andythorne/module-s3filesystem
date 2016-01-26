@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\S3FileSystem\Tests\AWS\S3;
+namespace Drupal\Tests\s3filesystem\Unit\AWS\S3;
 
 use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
 use Drupal\Tests\UnitTestCase;
@@ -8,9 +8,7 @@ use Drupal\Tests\UnitTestCase;
 /**
  * Class DrupalAdaptorTest
  *
- * @package Drupal\s3filesystem\StreamWrapper
- *
- * @see     Drupal\s3filesystem\AWS\S3\DrupalAdaptor
+ * @group s3filesystem
  */
 class DrupalAdaptorTest extends UnitTestCase {
 

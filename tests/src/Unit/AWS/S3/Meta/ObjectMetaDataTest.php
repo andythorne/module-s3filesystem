@@ -1,12 +1,14 @@
 <?php
+
+namespace Drupal\Tests\s3filesystem\Unit\AWS\S3\Meta;
+
 use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
 use Drupal\Tests\UnitTestCase;
-
 
 /**
  * Class ObjectMetaDataTest
  *
- * @see Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData
+ * @group s3filesystem
  */
 class ObjectMetaDataTest extends UnitTestCase {
 
