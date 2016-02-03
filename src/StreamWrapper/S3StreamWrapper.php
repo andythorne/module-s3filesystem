@@ -3,7 +3,6 @@
 namespace Drupal\s3filesystem\StreamWrapper;
 
 use Aws\Result;
-use Aws\S3\Exception\NoSuchKeyException;
 use Aws\S3\Exception\S3Exception;
 use Aws\S3\StreamWrapper;
 use Drupal\Component\Utility\Html;
@@ -81,7 +80,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    * @param LoggerInterface                  $logger
    * @param \Drupal\Core\Database\Connection $database
    */
-  public function setUp(DrupalAdaptor $drupalAdaptor, Config $config, LoggerInterface $logger = NULL, Connection $database) {
+  public function setUp(DrupalAdaptor $drupalAdaptor, Config $config, LoggerInterface $logger, Connection $database) {
     $this->drupalAdaptor = $drupalAdaptor;
     $this->config        = $config;
     $this->logger        = $logger;
@@ -92,6 +91,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
 
     $default                   = stream_context_get_options(stream_context_get_default());
     $default[$protocol]['ACL'] = 'public-read';
+    $default[$protocol]['seekable'] = true;
     stream_context_set_default($default);
   }
 
