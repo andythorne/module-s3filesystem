@@ -2,7 +2,6 @@
 
 namespace Drupal\s3filesystem\AWS\S3;
 
-use Aws\S3\S3Client;
 use Drupal\Core\Config\Config;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
 
@@ -34,6 +33,11 @@ class ClientFactory {
     $config = [
       'region'  => $s3filesystemConfig->get('s3.region'),
       'version' => 'latest',
+      'http' => [
+        /*'sink' => new SeekableCachingStream(
+          new Stream(fopen('php://temp', 'r+'))
+        ),*/
+      ],
     ];
     if ($use_instance_profile) {
       $config['default_cache_config'] = $default_cache_config;
