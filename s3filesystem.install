@@ -103,32 +103,22 @@ function s3filesystem_schema() {
         'type'        => 'varchar',
         'length'      => 255,
         'not null'    => TRUE,
-        'default'     => '',
       ),
-      'filesize'  => array(
-        'description' => 'The size of the file in bytes.',
-        'type'        => 'int',
-        'size'        => 'big',
-        'unsigned'    => TRUE,
+      'stat'  => array(
+        'description' => 'Serialized stat array',
+        'type'        => 'blob',
+        'size'        => 'normal',
         'not null'    => TRUE,
-        'default'     => 0,
       ),
-      'timestamp' => array(
-        'description' => 'UNIX timestamp for when the file was added.',
+      'expires' => array(
+        'description' => 'UNIX timestamp for when the cache expires.',
         'type'        => 'int',
         'unsigned'    => TRUE,
-        'not null'    => TRUE,
-        'default'     => 0,
-      ),
-      'dir'       => array(
-        'description' => 'Boolean indicating whether or not this object is a directory.',
-        'type'        => 'int',
         'not null'    => TRUE,
         'default'     => 0,
       ),
     ),
     'indexes'     => array(
-      'timestamp' => array('timestamp'),
       'uri' => array('uri'),
     ),
     'primary key' => array('fid'),
@@ -149,4 +139,37 @@ function s3filesystem_install() {
   // MySQL doesn't directly support case sensitive UTF8 collation. Fortunately,
   // 'utf8_bin' collation fulfills our needs.
   db_query("ALTER TABLE {file_s3filesystem} CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin");
+}
+
+/**
+ * Updates to use AWS Caching rather than custom caching tables
+ */
+function s3filesystem_update_8001(&$sandbox) {
+
+  $database = \Drupal::database();
+  $schema = $database->schema();
+
+  $database->query('TRUNCATE {file_s3filesystem}');
+
+  $spec = array(
+    'description' => 'Serialized stat array',
+    'type'        => 'blob',
+    'size'        => 'normal',
+    'not null'    => TRUE,
+  );
+  $schema->addField('file_s3filesystem', 'stat', $spec);
+
+  $spec = array(
+    'description' => 'UNIX timestamp for when the cache expires.',
+    'type'        => 'int',
+    'unsigned'    => TRUE,
+    'not null'    => TRUE,
+    'default'     => 0,
+  );
+  $schema->addField('file_s3filesystem', 'expires', $spec);
+
+  $schema->dropIndex('file_s3filesystem', 'timestamp');
+  $schema->dropField('file_s3filesystem', 'filesize');
+  $schema->dropField('file_s3filesystem', 'timestamp');
+  $schema->dropField('file_s3filesystem', 'dir');
 }

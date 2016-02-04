@@ -77,14 +77,7 @@ class S3FileSystemController extends ControllerBase {
 
     $imageUri = "s3://{$s3Path}";
 
-    // check the base image exists in the cache table. If we have no base image,
-    // check s3 (via file_exists). If s3 has no image, 404.
-    $row = $this->database->select('{file_s3filesystem}', 'f')
-      ->fields('f', ['uri'])
-      ->where('uri = ? AND dir = 0', [$imageUri])
-      ->execute();
-
-    if ((!$image = $row->fetchAssoc()) && !file_exists($imageUri)) {
+    if (!file_exists($imageUri)) {
       return new Response(NULL, 404);
     }
 

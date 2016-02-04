@@ -11,7 +11,6 @@ services:
     class: %s3filesystem.stream_wrapper.class%
     arguments:
       - @s3filesystem.aws_client
-
     tags:
       - { name: stream_wrapper, scheme: s3 }
 
@@ -23,3 +22,4 @@ services:
     class: %s3filesystem.client.class%
     arguments:
       - @s3filesystem.aws_client
+      - @database
