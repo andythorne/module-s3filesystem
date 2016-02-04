@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3filesystem\Exception\AWS\S3;
+namespace Drupal\s3filesystem\Exception\Aws\S3;
 
 /**
  * Class UploadFailedException

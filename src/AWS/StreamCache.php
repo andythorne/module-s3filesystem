@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3filesystem\AWS;
+namespace Drupal\s3filesystem\Aws;
 
 use Aws\CacheInterface;
 use Drupal\Core\Database\Connection;
@@ -8,6 +8,7 @@ use Drupal\Core\Database\Query\Condition;
 
 /**
  * Class StreamCache
+ * @package Drupal\s3filesystem\Aws
  */
 class StreamCache implements CacheInterface {
 

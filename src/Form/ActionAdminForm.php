@@ -6,7 +6,7 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Routing\LinkGeneratorTrait;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
+use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
 
 /**
  * Class ActionAdminForm

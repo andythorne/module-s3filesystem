@@ -12,8 +12,8 @@ use Drupal\Core\Database\Connection;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Url;
-use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
-use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
+use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
+use Drupal\s3filesystem\Aws\StreamCache;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
 use Psr\Log\LoggerInterface;
 

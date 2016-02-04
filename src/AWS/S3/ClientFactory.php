@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\s3filesystem\AWS\S3;
+namespace Drupal\s3filesystem\Aws\S3;
 
 use Aws\S3\S3Client;
 use Drupal\Core\Config\Config;
@@ -9,7 +9,7 @@ use Drupal\s3filesystem\Exception\S3FileSystemException;
 /**
  * Class ClientFactory
  *
- * @package   Drupal\s3filesystem\AWS\S3
+ * @package   Drupal\s3filesystem\Aws\S3
  *
  * @author    Andy Thorne <andy.thorne@timeinc.com>
  * @copyright Time Inc (UK) 2014

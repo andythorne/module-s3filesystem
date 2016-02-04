@@ -10,7 +10,7 @@ use Drupal\Core\Config\Config;
 use Drupal\Core\Form\ConfigFormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Url;
-use Drupal\s3filesystem\AWS\S3\ClientFactory;
+use Drupal\s3filesystem\Aws\S3\ClientFactory;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
 
 /**

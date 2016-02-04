@@ -9,8 +9,8 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 
   use Drupal\Core\StreamWrapper\StreamWrapperInterface;
-  use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
-  use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
+  use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
+  use Drupal\s3filesystem\Aws\S3\Meta\ObjectMetaData;
   use Drupal\s3filesystem\StreamWrapper\S3StreamWrapper;
   use Drupal\Tests\UnitTestCase;
   use Psr\Log\NullLogger;
@@ -81,7 +81,7 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
       $s3Client            = $this->getMockBuilder('Aws\S3\S3Client')
         ->disableOriginalConstructor()
         ->getMock();
-      $this->drupalAdaptor = $this->getMockBuilder('\Drupal\s3filesystem\AWS\S3\DrupalAdaptor')
+      $this->drupalAdaptor = $this->getMockBuilder('\Drupal\s3filesystem\Aws\S3\DrupalAdaptor')
         ->setConstructorArgs(array($s3Client))
         ->setMethods(array(
           'readCache',

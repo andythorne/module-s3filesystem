@@ -1,8 +1,8 @@
 <?php
 
-namespace Drupal\Tests\s3filesystem\Unit\AWS\S3;
+namespace Drupal\Tests\s3filesystem\Unit\Aws\S3;
 
-use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
+use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
 use Drupal\Tests\UnitTestCase;
 
 /**
@@ -47,75 +47,10 @@ class DrupalAdaptorTest extends UnitTestCase {
       ->disableOriginalConstructor()
       ->getMock();
 
-    $adaptor = new DrupalAdaptor($client);
+    $adaptor = new DrupalAdaptor($client, $this->container->get('database'));
 
     $adaptorClient = $adaptor->getS3Client();
 
     $this->assertInstanceOf('\Aws\S3\S3Client', $adaptorClient);
   }
-
-  public function testConvertMetadataUriWithoutMeta() {
-    $client = $this->getMockBuilder('\Aws\S3\S3Client')
-      ->disableOriginalConstructor()
-      ->getMock();
-
-    $adaptor = new DrupalAdaptor($client);
-
-    $file = 's3://test';
-    $meta = $adaptor->convertMetadata($file);
-
-    $this->assertTrue(is_array($meta));
-
-    $this->assertArrayHasKey('uri', $meta);
-    $this->assertEquals($file, $meta['uri']);
-
-    $this->assertArrayHasKey('dir', $meta);
-    $this->assertEquals(1, $meta['dir']);
-
-    $this->assertArrayHasKey('filesize', $meta);
-    $this->assertEquals(0, $meta['filesize']);
-
-    $this->assertArrayHasKey('uid', $meta);
-    $this->assertEquals('S3 File System', $meta['uid']);
-
-    $this->assertArrayHasKey('mode', $meta);
-    $this->assertEquals(0040000 | 0777, $meta['mode']);
-  }
-
-  public function testConvertMetadataUriWithMeta() {
-    $client = $this->getMockBuilder('\Aws\S3\S3Client')
-      ->disableOriginalConstructor()
-      ->getMock();
-
-    $now     = time();
-    $adaptor = new DrupalAdaptor($client);
-
-    $file = 's3://test';
-    $meta = $adaptor->convertMetadata($file, array(
-      'Size'         => 1337,
-      'LastModified' => $now,
-      'Owner'        => array(
-        'ID' => 99
-      ),
-    ));
-
-    $this->assertTrue(is_array($meta));
-
-    $this->assertArrayHasKey('uri', $meta);
-    $this->assertEquals($file, $meta['uri']);
-
-    $this->assertArrayHasKey('dir', $meta);
-    $this->assertEquals(0, $meta['dir']);
-
-    $this->assertArrayHasKey('filesize', $meta);
-    $this->assertEquals(1337, $meta['filesize']);
-
-    $this->assertArrayHasKey('uid', $meta);
-    $this->assertEquals(99, $meta['uid']);
-
-    $this->assertArrayHasKey('mode', $meta);
-    $this->assertEquals(0100000 | 0777, $meta['mode']);
-  }
-
-
 }
