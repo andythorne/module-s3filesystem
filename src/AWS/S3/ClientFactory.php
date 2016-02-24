@@ -2,6 +2,7 @@
 
 namespace Drupal\s3filesystem\AWS\S3;
 
+use Aws\S3\S3Client;
 use Drupal\Core\Config\Config;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
 

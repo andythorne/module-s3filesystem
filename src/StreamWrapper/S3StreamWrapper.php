@@ -14,9 +14,7 @@ use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Url;
 use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
 use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
-use Drupal\s3filesystem\AWS\StreamCache;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
-use Drupal\s3filesystem\StreamWrapper\Body\SeekableCachingStream;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -93,7 +91,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
 
     $default                   = stream_context_get_options(stream_context_get_default());
     $default[$protocol]['ACL'] = 'public-read';
-    //$default[$protocol]['seekable'] = true;
+    $default[$protocol]['seekable'] = true;
     //$default[$protocol]['cache'] = new StreamCache();
     stream_context_set_default($default);
   }
