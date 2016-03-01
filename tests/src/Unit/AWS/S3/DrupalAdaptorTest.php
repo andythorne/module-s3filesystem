@@ -10,47 +10,60 @@ use Drupal\Tests\UnitTestCase;
  *
  * @group s3filesystem
  */
-class DrupalAdaptorTest extends UnitTestCase {
+class DrupalAdaptorTest extends UnitTestCase
+{
 
-  /**
-   * The mock container.
-   *
-   * @var \Symfony\Component\DependencyInjection\ContainerBuilder|\PHPUnit_Framework_MockObject_MockObject
-   */
-  protected $container;
+    /**
+     * The mock container.
+     *
+     * @var \Symfony\Component\DependencyInjection\ContainerBuilder|\PHPUnit_Framework_MockObject_MockObject
+     */
+    protected $container;
 
-  /**
-   * Sets up a mock expectation for the container get() method.
-   *
-   * @param string $service_name
-   *   The service name to expect for the get() method.
-   * @param mixed  $return
-   *   The value to return from the mocked container get() method.
-   */
-  protected function setMockContainerService($service_name, $return = NULL) {
-    $expects = $this->container->expects($this->once())
-      ->method('get')
-      ->with($service_name);
+    protected function setUp()
+    {
+        parent::setUp();
 
-    if (isset($return)) {
-      $expects->will($this->returnValue($return));
-    }
-    else {
-      $expects->will($this->returnValue(TRUE));
+        $container = $this->getMock('Symfony\Component\DependencyInjection\ContainerInterface');
+        \Drupal::setContainer($container);
     }
 
-    \Drupal::setContainer($this->container);
-  }
 
-  public function testS3Client() {
-    $client = $this->getMockBuilder('\Aws\S3\S3Client')
-      ->disableOriginalConstructor()
-      ->getMock();
+    /**
+     * Sets up a mock expectation for the container get() method.
+     *
+     * @param string $service_name
+     *   The service name to expect for the get() method.
+     * @param mixed $return
+     *   The value to return from the mocked container get() method.
+     */
+    protected function setMockContainerService($service_name, $return = null)
+    {
+        $expects = $this->container->expects($this->once())
+            ->method('get')
+            ->with($service_name);
 
-    $adaptor = new DrupalAdaptor($client, $this->container->get('database'));
+        if (isset($return)) {
+            $expects->will($this->returnValue($return));
+        } else {
+            $expects->will($this->returnValue(true));
+        }
 
-    $adaptorClient = $adaptor->getS3Client();
+        \Drupal::setContainer($this->container);
+    }
 
-    $this->assertInstanceOf('\Aws\S3\S3Client', $adaptorClient);
-  }
+    public function testS3Client()
+    {
+        $client = $this->getMockBuilder('\Aws\S3\S3Client')
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $database = $this->getMockBuilder('\Drupal\Core\Database\Connection')
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $adaptor = new DrupalAdaptor($client, $database);
+
+        $this->assertSame($client, $adaptor->getS3Client());
+    }
 }
