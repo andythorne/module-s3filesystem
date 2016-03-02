@@ -1,0 +1,69 @@
+language: php
+
+php:
+  - 5.5
+  - 5.6
+  - 7.0
+  - hhvm
+
+mysql:
+  database: drupal
+  username: root
+  encoding: utf8
+
+matrix:
+  fast_finish: true
+  allow_failures:
+    - php: hhvm
+
+before_install:
+  - sudo apt-get update > /dev/null
+  - composer self-update
+
+install:
+  # install php packages required for running a web server from drush on php 5.3
+  - sudo apt-get install -y --force-yes php5-cgi php5-mysql
+
+  # add composer's global bin directory to the path
+  # see: https://github.com/drush-ops/drush#install---composer
+  - export PATH="$HOME/.composer/vendor/bin:$PATH"
+
+  # Set the api token so we don't hit the github api limit
+  - composer config -g github-oauth.github.com $GITHUB_ACCESS_TOKEN
+
+  # Install drush
+  - composer global require drush/drush:dev-master -n
+  - phpenv rehash
+
+  # Create MySQL Database
+  - mysql -e 'create database drupal;'
+
+before_script:
+  # remove Xdebug as we don't need it and it causes
+  # PHP Fatal error:  Maximum function nesting level of '256' reached
+  - phpenv config-rm xdebug.ini
+
+  # navigate out of module directory to prevent blown stack by recursive module lookup
+  - cd ../..
+
+  # download Drupal 8 core.
+  - wget -q -O - http://ftp.drupal.org/files/projects/drupal-8.0.x-dev.tar.gz | tar xz
+  - cd drupal-8.0.x-dev
+
+  # reference and enable s3filesystem in build site
+  - ln -s $(readlink -e $(cd -)) modules/s3filesystem
+
+  # Install the drupal composer manager
+  - wget -q -O - https://ftp.drupal.org/files/projects/composer_manager-8.x-1.x-dev.tar.gz | tar xz -C modules
+  - php modules/composer_manager/scripts/init.php
+  - composer drupal-update -n
+
+  # Install drupal default profile
+  - php -d sendmail_path=`which true` ~/.composer/vendor/bin/drush.php --yes --verbose site-install --db-url=mysql://root:@127.0.0.1/drupal
+  - drush pm-enable s3filesystem simpletest composer_manager --yes
+
+  # start a web server on port 8080, run in the background; wait for initialization
+  - drush runserver 127.0.0.1:8080 &
+  - until netstat -an 2>/dev/null | grep '8080.*LISTEN'; do true; done
+
+script: php core/scripts/run-tests.sh --sqlite /tmp/drupal-test.sqlite --url 'http://127.0.0.1:8080' --dburl mysql://drupal:@localhost/drupal --module s3filesystem --php /usr/bin/php
