@@ -15,10 +15,9 @@ use Drupal\s3filesystem\Exception\S3FileSystemException;
  * @copyright Time Inc (UK) 2014
  */
 class ClientFactory {
-  public static function create(Config $s3filesystemConfig = NULL) {
-    if (!$s3filesystemConfig instanceof Config) {
-      $s3filesystemConfig = \Drupal::config('s3filesystem.settings');
-    }
+
+  public static function create(callable $withResolvedConfig = null) {
+    $s3filesystemConfig = \Drupal::config('s3filesystem.settings');
 
     // if there is no bucket, don't use the stream
     if (!$s3filesystemConfig->get('s3.bucket')) {
@@ -34,11 +33,6 @@ class ClientFactory {
     $config = [
       'region'  => $s3filesystemConfig->get('s3.region'),
       'version' => 'latest',
-      'http' => [
-        /*'sink' => new SeekableCachingStream(
-          new Stream(fopen('php://temp', 'r+'))
-        ),*/
-      ],
     ];
     if ($use_instance_profile) {
       $config['default_cache_config'] = $default_cache_config;
@@ -58,11 +52,13 @@ class ClientFactory {
       ];
     }
 
-    $s3 = new S3Client($config);
-
     if ($s3filesystemConfig->get('s3.custom_host.enabled') && $s3filesystemConfig->get('s3.custom_host.hostname')) {
-      $s3->setBaseURL($s3filesystemConfig->get('s3.custom_host.hostname'));
+      $config['base_url'] = $s3filesystemConfig->get('s3.custom_host.hostname');
     }
+
+    $config['with_resolved'] = $withResolvedConfig;
+
+    $s3 = new S3Client($config);
 
     return $s3;
   }

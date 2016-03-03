@@ -3,7 +3,12 @@
 namespace Drupal\s3filesystem\Aws\S3;
 
 use Aws\S3\S3Client;
+use Drupal\Core\Config\Config;
+use Drupal\Core\Config\ConfigFactory;
+use Drupal\Core\Config\ConfigFactoryInterface;
 use Drupal\Core\Database\Connection;
+use Drupal\Core\StreamWrapper\StreamWrapperInterface;
+use Drupal\s3filesystem\StreamWrapper\S3StreamWrapper;
 
 /**
  * Class DrupalAdaptor
@@ -21,13 +26,16 @@ class DrupalAdaptor {
   protected $s3Client;
 
   /**
-   * @var Connection
+   * @var Config
    */
-  protected $database;
+  protected $config;
 
-  function __construct(S3Client $s3Client, Connection $database) {
+  function __construct(
+    S3Client $s3Client,
+    ConfigFactoryInterface $configFactory
+  ) {
     $this->s3Client = $s3Client;
-    $this->database = $database;
+    $this->config = $configFactory->get('s3filesystem.settings');
   }
 
   /**
@@ -38,34 +46,38 @@ class DrupalAdaptor {
   }
 
   /**
+   * @param $key
+   *
+   * @return Config
+   */
+  public function getConfigValue($key) {
+    return $this->config->get($key);
+  }
+
+  /**
    * Refresh the local S3 cache
    *
-   * @throws \Exception
+   * @param \Drupal\Core\StreamWrapper\StreamWrapperInterface $stream
    */
-  public function refreshCache() {
-    $config = \Drupal::config('s3filesystem.settings');
-
-    $s3Config = $config->get('s3');
-
+  public function refreshCache(StreamWrapperInterface $stream = null) {
     // Set up the iterator that will loop over all the objects in the bucket.
-    $iterator_args      = array('Bucket' => $s3Config['bucket']);
+    $iterator_args = array(
+      'Bucket' => $this->config->get('s3.bucket'),
+      'PageSize' => 1000,
+    );
 
     // If the 'prefix' option has been set, retrieve from S3 only those files
     // whose keys begin with the prefix.
-    if (!empty($s3Config['keyprefix'])) {
-      $iterator_args['Prefix'] = $s3Config['keyprefix'];
+    if ($this->config->get('s3.keyprefix')) {
+      $iterator_args['Prefix'] = $this->config->get('s3.keyprefix');
     }
-    $iterator_args['PageSize'] = 1000;
 
     $iterator = $this->s3Client->getIterator('ListObjects', $iterator_args);
 
+    $stream = $stream ?: new S3StreamWrapper();
+
     foreach ($iterator as $s3_metadata) {
-      $uri = "s3://{$s3_metadata['Key']}";
-      if(!is_dir($uri)) {
-        $f = fopen($uri, 'r');
-        fstat($f);
-        fclose($f);
-      }
+      $stream->url_stat('s3://' . $s3_metadata['Key'], 0);
     }
   }
 } 

@@ -2,20 +2,18 @@
 
 namespace Drupal\s3filesystem\StreamWrapper;
 
-use Aws\Result;
-use Aws\S3\Exception\S3Exception;
+use Aws\CacheInterface;
 use Aws\S3\StreamWrapper;
 use Drupal\Component\Utility\Html;
 use Drupal\Component\Utility\UrlHelper;
-use Drupal\Core\Config\Config;
 use Drupal\Core\Database\Connection;
 use Drupal\Core\StreamWrapper\StreamWrapperInterface;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
 use Drupal\Core\Url;
 use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
-use Drupal\s3filesystem\Aws\StreamCache;
 use Drupal\s3filesystem\Exception\S3FileSystemException;
 use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * Class S3StreamWrapper
@@ -32,26 +30,19 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
   protected $uri;
 
   /**
-   * S3filesystem config object
-   *
-   * @var Config
-   */
-  protected $config;
-
-  /**
-   * @var LoggerInterface
-   */
-  protected $logger;
-
-  /**
    * @var DrupalAdaptor
    */
-  protected $drupalAdaptor;
+  protected $adaptor;
 
   /**
    * @var Connection
    */
   protected $database;
+
+  /**
+   * @var LoggerInterface
+   */
+  protected $logger;
 
   /**
    * Stream wrapper constructor.
@@ -65,34 +56,33 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    */
   public function __construct() {
     $this->setUp(
-      \Drupal::service('s3filesystem.client'),
-      \Drupal::config('s3filesystem.settings'),
-      \Drupal::logger('s3filesystem'),
-      \Drupal::database()
+      \Drupal::service('s3filesystem.adaptor'),
+      \Drupal::service('s3filesystem.aws_client.s3.cache'),
+      \Drupal::service('logger.factory')->get('s3filesystem')
     );
   }
 
   /**
    * Set up the StreamWrapper
    *
-   * @param DrupalAdaptor                    $drupalAdaptor
-   * @param Config                           $config
-   * @param LoggerInterface                  $logger
-   * @param \Drupal\Core\Database\Connection $database
+   * @param DrupalAdaptor   $adaptor
+   * @param CacheInterface  $cache
+   * @param LoggerInterface $logger
    */
-  public function setUp(DrupalAdaptor $drupalAdaptor, Config $config, LoggerInterface $logger, Connection $database) {
-    $this->drupalAdaptor = $drupalAdaptor;
-    $this->config        = $config;
-    $this->logger        = $logger;
-    $this->database      = $database;
+  public function setUp(
+    DrupalAdaptor $adaptor,
+    CacheInterface $cache = NULL,
+    LoggerInterface $logger = NULL
+  ) {
+    $this->adaptor = $adaptor;
+    $this->logger = $logger ?: new NullLogger();
 
     $protocol = 's3';
-    $this->register($this->drupalAdaptor->getS3Client(), $protocol);
+    $this->register($this->adaptor->getS3Client(), $protocol, $cache);
 
-    $default                   = stream_context_get_options(stream_context_get_default());
+    $default = stream_context_get_options(stream_context_get_default());
     $default[$protocol]['ACL'] = 'public-read';
-    $default[$protocol]['seekable'] = true;
-    $default[$protocol]['cache'] = new StreamCache($database);
+    $default[$protocol]['seekable'] = TRUE;
     stream_context_set_default($default);
   }
 
@@ -136,18 +126,6 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    */
   public function getUri() {
     return $this->uri;
-  }
-
-  /**
-   * Log debug messages
-   *
-   * @codeCoverageIgnore
-   *
-   * @param $name
-   * @param $arguments
-   */
-  protected function log($name, $arguments) {
-    $this->logger->debug($name . ' -> [' . implode(', ', $arguments) . ']');
   }
 
   /**
@@ -205,7 +183,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    */
   public function getExternalUrl() {
 
-    $filename    = str_replace('s3://', '', $this->uri);
+    $filename = str_replace('s3://', '', $this->uri);
     $s3_filename = trim($filename, '/');
 
     // Image styles support:
@@ -214,79 +192,89 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
     // image_style_deliver(), which will create the derivative when that URL
     // gets requested.
     $path_parts = explode('/', $s3_filename);
-    if ($path_parts[0] == 'styles') {
-      if (!file_exists($this->uri)) {
-        list(, $imageStyle, $scheme) = array_splice($path_parts, 0, 3);
+    if ($path_parts[0] == 'styles' && !file_exists($this->uri)) {
+      list(, $imageStyle, $scheme) = array_splice($path_parts, 0, 3);
 
-        return Url::fromRoute(
-          'image.style_s3',
-          [
-            'image_style' => $imageStyle,
-            'file'        => implode('/', $path_parts),
-          ]
-        )->toString();
-      }
+      return Url::fromRoute(
+        'image.style_s3',
+        [
+          'image_style' => $imageStyle,
+          'file' => implode('/', $path_parts),
+        ]
+      )->toString();
     }
 
     // If the filename contains a query string do not use cloudfront
     // It won't work!!!
-    $cdnEnabled = $this->config->get('s3.custom_cdn.enabled');
-    $cdnDomain  = $this->config->get('s3.custom_cdn.domain');
+    $cdnEnabled = $this->adaptor->getConfigValue('s3.custom_cdn.enabled');
+    $cdnDomain = $this->adaptor->getConfigValue('s3.custom_cdn.domain');
     if (strpos($s3_filename, "?") !== FALSE) {
       $cdnEnabled = FALSE;
-      $cdnDomain  = NULL;
+      $cdnDomain = NULL;
     }
 
     // Set up the URL settings from the Settings page.
     $url_settings = [
-      'torrent'       => FALSE,
+      'torrent' => FALSE,
       'presigned_url' => FALSE,
-      'timeout'       => 60,
+      'timeout' => 60,
       'forced_saveas' => FALSE,
-      'api_args'      => ['Scheme' => $this->config->get('s3.force_https') ? 'https' : 'http'],
+      'api_args' => [
+        'Scheme' => $this->adaptor->getConfigValue(
+          's3.force_https'
+        ) ? 'https' : 'http'
+      ],
     ];
 
     // Presigned URLs.
-    foreach ($this->config->get('s3.presigned_urls') as $line) {
+    foreach ($this->adaptor->getConfigValue('s3.presigned_urls') as $line) {
 
-      $blob    = trim($line);
+      $blob = trim($line);
       $timeout = 60;
       if ($blob && preg_match('/(.*)\|(.*)/', $blob, $matches)) {
-        $blob    = $matches[2];
+        $blob = $matches[2];
         $timeout = $matches[1];
       }
       // ^ is used as the delimeter because it's an illegal character in URLs.
       if (preg_match("^$blob^", $s3_filename)) {
         $url_settings['presigned_url'] = TRUE;
-        $url_settings['timeout']       = $timeout;
+        $url_settings['timeout'] = $timeout;
         break;
       }
     }
     // Forced Save As.
-    foreach ($this->config->get('s3.saveas') as $blob) {
+    foreach ($this->adaptor->getConfigValue('s3.saveas') as $blob) {
       if (preg_match("^$blob^", $s3_filename)) {
-        $filename                                               = basename($s3_filename);
+        $filename = basename($s3_filename);
         $url_settings['api_args']['ResponseContentDisposition'] = "attachment; filename=\"$filename\"";
-        $url_settings['forced_saveas']                          = TRUE;
+        $url_settings['forced_saveas'] = TRUE;
         break;
       }
     }
 
     if ($cdnEnabled) {
-      $cdnHttpOnly = (bool) $this->config->get('s3.custom_cdn.http_only');
-      $request     = \Drupal::request();
+      $cdnHttpOnly = (bool) $this->adaptor->getConfigValue(
+        's3.custom_cdn.http_only'
+      );
+      $request = \Drupal::request();
 
-      if ($cdnDomain && (!$cdnHttpOnly || ($cdnHttpOnly && !$request->isSecure()))) {
+      if ($cdnDomain && (!$cdnHttpOnly || ($cdnHttpOnly && !$request->isSecure(
+            )))
+      ) {
         $domain = Html::escape(UrlHelper::stripDangerousProtocols($cdnDomain));
         if (!$domain) {
-          throw new S3FileSystemException($this->t('The "Use custom CDN" option is enabled, but no Domain Name has been set.'));
+          throw new S3FileSystemException(
+            $this->t(
+              'The "Use custom CDN" option is enabled, but no Domain Name has been set.'
+            )
+          );
         }
 
         // If domain is set to a root-relative path, add the hostname back in.
         if (strpos($domain, '/') === 0) {
           $domain = $request->getHttpHost() . $domain;
         }
-        $scheme    = $request->isSecure() ? 'https' : 'http';
+        $scheme = $request->isSecure() ? 'https' : 'http';
         $cdnDomain = "$scheme://$domain";
       }
 
@@ -311,8 +299,8 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
         }
       }
 
-      $url = $this->drupalAdaptor->getS3Client()->getObjectUrl(
-        $this->config->get('s3.bucket'),
+      $url = $this->adaptor->getS3Client()->getObjectUrl(
+        $this->adaptor->getConfigValue('s3.bucket'),
         $this->prefixPath($s3_filename, FALSE, FALSE)
       );
     }
@@ -321,7 +309,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
     // https://forums.aws.amazon.com/thread.jspa?threadID=140949
     // So Forced SaveAs and Presigned URLs cannot be served as torrents.
     if (!$url_settings['forced_saveas'] && !$url_settings['presigned_url']) {
-      foreach ($this->config->get('s3.torrents') as $blob) {
+      foreach ($this->adaptor->getConfigValue('s3.torrents') as $blob) {
         if (preg_match("^$blob^", $s3_filename)) {
           // A torrent URL is just a plain URL with "?torrent" on the end.
           $url .= '?torrent';
@@ -362,23 +350,18 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    */
   public function dir_opendir($path, $options) {
     $this->uri = $path;
-    $path      = $this->prefixPath($path);
+    $path = $this->prefixPath($path);
 
     return parent::dir_opendir($path, $options);
   }
 
 
   /**
-   * AWS SDK StreamWrapper does not implement the rmdir method correctly.
-   * It also clears the caching table of removed objects/paths.
-   *
-   * @codeCoverageIgnore
-   *
    * {@inheritdoc}
    */
   public function rmdir($path, $options) {
     $this->uri = $path;
-    $path      = $this->prefixPath($path);
+    $path = $this->prefixPath($path);
 
     return parent::rmdir($path, $options);
   }
@@ -388,7 +371,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    */
   public function mkdir($path, $mode, $options) {
     $this->uri = $path;
-    $path      = $this->prefixPath($path);
+    $path = $this->prefixPath($path);
 
     return parent::mkdir($path, $mode, $options);
   }
@@ -396,31 +379,18 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
   /**
    * Store the uri for when we write the file
    *
-   * @codeCoverageIgnore
-   *
    * {@inheritdoc}
    */
   public function stream_open($path, $mode, $options, &$opened_path) {
     $this->uri = $path;
-    $path      = $this->prefixPath($path);
+    $path = $this->prefixPath($path);
 
     return parent::stream_open($path, $mode, $options, $opened_path);
   }
 
-  /**
-   * Write cache after a flush
-   *
-   * @codeCoverageIgnore
-   *
-   * {@inheritdoc}
-   */
-  public function stream_flush() {
-    return parent::stream_flush();
-  }
-
   public function unlink($path) {
     $this->uri = $path;
-    $path      = $this->prefixPath($path);
+    $path = $this->prefixPath($path);
 
     return parent::unlink($path); // TODO: Change the autogenerated stub
   }
@@ -431,7 +401,7 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    */
   public function url_stat($path, $flags) {
     $this->uri = $path;
-    $path      = $this->prefixPath($path);
+    $path = $this->prefixPath($path);
 
     return parent::url_stat($path, $flags);
   }
@@ -445,17 +415,35 @@ class S3StreamWrapper extends StreamWrapper implements StreamWrapperInterface {
    *
    * @return string
    */
-  protected function prefixPath($path, $includeStream = TRUE, $includeBucket = TRUE) {
+  protected function prefixPath(
+    $path,
+    $includeStream = TRUE,
+    $includeBucket = TRUE
+  ) {
     if (strpos($path, 's3://') === 0) {
       $path = str_replace('s3://', '', $path);
     }
 
-    if (strpos($path, $this->config->get('s3.keyprefix')) === FALSE) {
-      $path = rtrim($this->config->get('s3.keyprefix'), '/') . '/' . $path;
+    if ($this->adaptor->getConfigValue('s3.keyprefix') && strpos(
+        $path,
+        $this->adaptor->getConfigValue('s3.keyprefix')
+      ) === FALSE
+    ) {
+      $path = rtrim(
+          $this->adaptor->getConfigValue('s3.keyprefix'),
+          '/'
+        ) . '/' . $path;
     }
 
-    if ($includeBucket && strpos($path, $this->config->get('s3.bucket')) === FALSE) {
-      $path = rtrim($this->config->get('s3.bucket'), '/') . '/' . $path;
+    if ($includeBucket && $this->adaptor->getConfigValue('s3.bucket') && strpos(
+        $path,
+        $this->adaptor->getConfigValue('s3.bucket')
+      ) === FALSE
+    ) {
+      $path = rtrim(
+          $this->adaptor->getConfigValue('s3.bucket'),
+          '/'
+        ) . '/' . $path;
     }
 
     if ($includeStream) {

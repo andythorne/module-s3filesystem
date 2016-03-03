@@ -12,6 +12,8 @@ use Drupal\Core\Database\Query\Condition;
  */
 class StreamCache implements CacheInterface {
 
+  static $futureCacheTime = 31557600;
+
   /**
    * @var Connection
    */
@@ -54,7 +56,7 @@ class StreamCache implements CacheInterface {
    */
   public function set($key, $value, $ttl = 0) {
     if($ttl <= 0) {
-      $expires = time() + 31557600;
+      $expires = time() + self::$futureCacheTime;
     } else {
       $expires = time() + $ttl;
     }
@@ -74,18 +76,7 @@ class StreamCache implements CacheInterface {
    */
   public function remove($key) {
     $delete_query = $this->database->delete('file_s3filesystem');
-    $uri = rtrim($key, '/');
-    if (is_array($uri)) {
-      // Build an OR condition to delete all the URIs in one query.
-      $or = new Condition('OR');
-      foreach ($uri as $u) {
-        $or->condition('uri', $u, '=');
-      }
-      $delete_query->condition($or);
-    }
-    else {
-      $delete_query->condition('uri', $uri, '=');
-    }
+    $delete_query->condition('uri', $key, '=');
 
     return $delete_query->execute();
   }

@@ -2,7 +2,8 @@ parameters:
   s3filesystem.stream_wrapper.class:      Drupal\s3filesystem\StreamWrapper\S3StreamWrapper
   s3filesystem.aws_client.factory.class:  Drupal\s3filesystem\Aws\S3\ClientFactory
   s3filesystem.aws_client.class:          Aws\S3\S3Client
-  s3filesystem.client.class:              Drupal\s3filesystem\Aws\S3\DrupalAdaptor
+  s3filesystem.aws_client.s3.cache.class: Drupal\s3filesystem\Aws\StreamCache
+  s3filesystem.adaptor.class:             Drupal\s3filesystem\Aws\S3\DrupalAdaptor
 
 services:
 
@@ -18,8 +19,13 @@ services:
     class:            %s3filesystem.aws_client.class%
     factory:          [%s3filesystem.aws_client.factory.class%, create]
 
-  s3filesystem.client:
-    class: %s3filesystem.client.class%
+  s3filesystem.aws_client.s3.cache:
+    class: %s3filesystem.aws_client.s3.cache.class%
+    arguments:
+      - @database
+
+  s3filesystem.adaptor:
+    class: %s3filesystem.adaptor.class%
     arguments:
       - @s3filesystem.aws_client
-      - @database
+      - @config.factory

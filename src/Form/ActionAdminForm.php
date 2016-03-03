@@ -71,7 +71,7 @@ class ActionAdminForm extends FormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     /** @var DrupalAdaptor $client */
-    $client = \Drupal::service('s3filesystem.client');
+    $client = \Drupal::service('s3filesystem.adaptor');
     $client->refreshCache();
   }
 
