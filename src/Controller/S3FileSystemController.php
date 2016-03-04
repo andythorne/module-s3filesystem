@@ -72,7 +72,7 @@ class S3FileSystemController extends ControllerBase {
     $s3Path = $request->query->get('file');
 
     if (!$s3Path) {
-      throw new HttpException(500, 'file parameter must be supplied');
+      return new Response($this->t('File parameter must be supplied.'), 500);
     }
 
     $imageUri = "s3://{$s3Path}";
