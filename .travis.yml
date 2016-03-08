@@ -40,6 +40,9 @@ install:
   # Create MySQL Database
   - mysql -e 'create database drupal;'
 
+  # Add coveralls script
+  - composer require satooshi/php-coveralls:~0.6@stable
+
 before_script:
   # remove Xdebug as we don't need it and it causes
   # PHP Fatal error:  Maximum function nesting level of '256' reached
@@ -68,8 +71,14 @@ before_script:
   - drush runserver 127.0.0.1:8080 &
   - until netstat -an 2>/dev/null | grep '8080.*LISTEN'; do true; done
 
+  # Setup coveralls log dir
+  - mkdir -p build/logs
+
   # check the modules dir
   - drush pm-list
   - ls modules/
 
-script: ./vendor/bin/phpunit -c core/ --group=s3filesystem
+script: ./vendor/bin/phpunit -c core/ --coverage-clover build/logs/clover.xml --group s3filesystem
+
+after_success:
+  - sh -c 'if [ "$TRAVIS_PHP_VERSION" != "hhvm" ]; then php vendor/bin/coveralls -v; fi;'
