@@ -27,7 +27,7 @@ install:
   # add composer's global bin directory to the path
   # see: https://github.com/drush-ops/drush#install---composer
   - export PATH="$HOME/.composer/vendor/bin:$PATH"
-  - export SIMPLETEST_DB=mysql://root:@localhost/drupal
+  - export SIMPLETEST_DB=mysql://root:@127.0.0.1/drupal
 
 
   # Set the api token so we don't hit the github api limit
@@ -61,11 +61,15 @@ before_script:
   - composer drupal-update -n
 
   # Install drupal default profile
-  - php -d sendmail_path=`which true` ~/.composer/vendor/bin/drush.php --yes --verbose site-install --db-url=mysql://root:@127.0.0.1/drupal
+  - php -d sendmail_path=`which true` ~/.composer/vendor/bin/drush.php --yes --verbose site-install --db-url=$SIMPLETEST_DB
   - drush pm-enable s3filesystem simpletest composer_manager --yes
 
   # start a web server on port 8080, run in the background; wait for initialization
   - drush runserver 127.0.0.1:8080 &
   - until netstat -an 2>/dev/null | grep '8080.*LISTEN'; do true; done
 
-script: php vendor/bin/phpunit -c core/ --group=s3filesystem
+  # check the modules dir
+  - drush pm-list
+  - ls modules/
+
+script: ./vendor/bin/phpunit -c core/ --group=s3filesystem
