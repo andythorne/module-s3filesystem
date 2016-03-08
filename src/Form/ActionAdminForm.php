@@ -6,7 +6,7 @@ use Drupal\Core\Form\FormBase;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\Routing\LinkGeneratorTrait;
 use Drupal\Core\StringTranslation\StringTranslationTrait;
-use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
+use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
 
 /**
  * Class ActionAdminForm
@@ -71,7 +71,7 @@ class ActionAdminForm extends FormBase {
    */
   public function submitForm(array &$form, FormStateInterface $form_state) {
     /** @var DrupalAdaptor $client */
-    $client = \Drupal::service('s3filesystem.client');
+    $client = \Drupal::service('s3filesystem.adaptor');
     $client->refreshCache();
   }
 

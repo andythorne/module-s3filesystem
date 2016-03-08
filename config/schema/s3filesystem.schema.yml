@@ -1,7 +1,7 @@
 # Schema for the configuration files of the S3 File System module.
 
 s3filesystem.settings:
-  type: mapping
+  type: config_object
   label: 'S3 File System Settings'
   mapping:
 
@@ -9,12 +9,15 @@ s3filesystem.settings:
       type: mapping
       label: 'S3 config'
       mapping:
+
         bucket:
           type: string
           label: 'S3 Bucket'
+
         keyprefix:
           type: string
           label: 'S3 Prefix'
+
         region:
           type: string
           label: 'S3 Region'
@@ -23,7 +26,7 @@ s3filesystem.settings:
           type: boolean
           label: 'If True, always serve files from S3 via HTTPS'
 
-        custom_s3_host:
+        custom_host:
           type: mapping
           label: 'S3 config'
           mapping:
@@ -48,7 +51,6 @@ s3filesystem.settings:
               type:  boolean
               label: 'Use custom CDN on http only'
 
-
         ignore_cache:
           type: boolean
           label: 'S3 Prefix'
@@ -57,37 +59,41 @@ s3filesystem.settings:
           type: string
           label: 'Partial Refresh Prefix'
 
-    presigned_urls:
-      type: sequence
-      label: 'A list of timeouts and paths that should be delivered through a presigned url.'
-      sequence:
-        - type: string
+        presigned_urls:
+          type: sequence
+          label: 'A list of timeouts and paths that should be delivered through a presigned url.'
+          sequence:
+            - type: string
 
-    saveas:
-      type: sequence
-      label: 'A list of paths for which users will be forced to save the file, rather than displaying it in the browser.'
-      sequence:
-        - type: string
+        saveas:
+          type: sequence
+          label: 'A list of paths for which users will be forced to save the file, rather than displaying it in the browser.'
+          sequence:
+            - type: string
 
-    torrents:
-      type: sequence
-      label: 'A list of paths that should be delivered via BitTorrent.'
-      sequence:
-        - type: string
+        torrents:
+          type: sequence
+          label: 'A list of paths that should be delivered via BitTorrent.'
+          sequence:
+            - type: string
 
     aws:
       type: mapping
       label: 'AWS Credentials'
       mapping:
+
         use_instance_profile:
           type: boolean
           label: 'If your Drupal site is running on an Amazon EC2 server, you may use the Instance Profile Credentials from that server rather than setting your AWS credentials directly.'
+
         access_key:
           type: string
           label: 'Amazon Web Services Access Key'
+
         secret_key:
           type: string
           label: 'Amazon Web Services Secret Key'
+
         default_cache_config:
           type: path
           label: 'The default cache location for your EC2 Instance Profile Credentials.'

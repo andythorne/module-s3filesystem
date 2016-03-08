@@ -1,6 +1,7 @@
 <?php
 
-namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
+namespace Drupal\s3filesystem\StreamWrapper {
+
   function file_exists() {
     return FALSE;
   }
@@ -8,12 +9,18 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 
 namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 
+  use Aws\Command;
+  use Aws\CommandInterface;
+  use Aws\Result;
+  use Aws\S3\S3Client;
+  use Drupal\Core\Config\ConfigFactory;
   use Drupal\Core\StreamWrapper\StreamWrapperInterface;
-  use Drupal\s3filesystem\AWS\S3\DrupalAdaptor;
-  use Drupal\s3filesystem\AWS\S3\Meta\ObjectMetaData;
+  use Drupal\s3filesystem\Aws\S3\DrupalAdaptor;
   use Drupal\s3filesystem\StreamWrapper\S3StreamWrapper;
-  use Drupal\Tests\UnitTestCase;
+  use Drupal\Tests\s3filesystem\Unit\S3ConfigFactory;
+  use PHPUnit_Framework_MockObject_MockObject;
   use Psr\Log\NullLogger;
+  use Symfony\Component\DependencyInjection\ContainerBuilder;
   use Symfony\Component\HttpFoundation\Request;
   use Symfony\Component\HttpFoundation\RequestStack;
 
@@ -21,26 +28,47 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
   /**
    * Class S3FileSystemStreamWrapperTest
    *
-   * @group s3filesystem
+   * @author andy.thorne@timeinc.com
+   * @group  s3filesystem
    */
-  class S3FileSystemStreamWrapperTest extends UnitTestCase {
+  class S3FileSystemStreamWrapperTest extends \Drupal\Tests\UnitTestCase {
 
     /**
      * The mock container.
      *
-     * @var \Symfony\Component\DependencyInjection\ContainerBuilder|\PHPUnit_Framework_MockObject_MockObject
+     * @var ContainerBuilder|PHPUnit_Framework_MockObject_MockObject
      */
     protected $container;
 
     /**
-     * @var DrupalAdaptor
+     * @var DrupalAdaptor|PHPUnit_Framework_MockObject_MockObject
      */
     protected $drupalAdaptor;
 
+    /**
+     * @var S3Client|PHPUnit_Framework_MockObject_MockObject
+     */
+    protected $s3Client;
+
+    /**
+     * @var array
+     */
+    protected $testConfig = [];
+
+    /**
+     * @var ConfigFactory
+     */
+    protected $configFactory;
+
     protected function setUp() {
-      $this->container = $this->getMockBuilder('Symfony\Component\DependencyInjection\ContainerBuilder')
-        ->setMethods(array('get'))
-        ->getMock();
+      parent::setUp();
+
+      $this->s3Client = NULL;
+      $this->container = $this->getMock(
+        'Symfony\Component\DependencyInjection\ContainerInterface'
+      );
+
+      \Drupal::setContainer($this->container);
     }
 
     /**
@@ -66,83 +94,80 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
       \Drupal::setContainer($this->container);
     }
 
+    protected function setupS3Client(array $s3Methods = []) {
+      $this->s3Client = $this->getMockBuilder('Aws\S3\S3Client')
+        ->disableOriginalConstructor()
+        ->setMethods(
+          array_unique(
+            array_merge(
+              $s3Methods,
+              ['getObjectUrl', 'getCommand', 'execute', 'getPaginator']
+            )
+          )
+        )
+        ->getMock();
+
+      $this->s3Client->expects($this->any())
+        ->method('getObjectUrl')
+        ->will(
+          $this->returnCallback(
+            function ($bucket, $key, $expires = NULL, array $args = array()) {
+              return 'region.amazonaws.com/' . $key;
+            }
+          )
+        );
+
+      if (!in_array('getCommand', $s3Methods)) {
+        $this->s3Client->expects($this->any())
+          ->method('getCommand')
+          ->willReturnCallback(
+            function ($name, $args) {
+              return new Command($name, $args);
+            }
+          );
+      }
+      if (!in_array('execute', $s3Methods)) {
+        $this->s3Client->expects($this->any())
+          ->method('execute')
+          ->willReturn(new Result());
+      }
+    }
+
     /**
      * @param array $methods
+     * @param array $configOverride
      *
-     * @return S3StreamWrapper
+     * @return \Drupal\s3filesystem\StreamWrapper\S3StreamWrapper
      */
-    protected function getWrapper(array $methods = NULL, \Closure $configClosure = NULL) {
+    protected function getWrapper(
+      array $methods = NULL,
+      array $configOverride = []
+    ) {
 
-      $wrapper = $this->getMockBuilder('Drupal\s3filesystem\StreamWrapper\S3StreamWrapper')
+      $wrapper = $this->getMockBuilder(
+        'Drupal\s3filesystem\StreamWrapper\S3StreamWrapper'
+      )
         ->disableOriginalConstructor()
         ->setMethods($methods)
         ->getMock();
 
-      $s3Client            = $this->getMockBuilder('Aws\S3\S3Client')
-        ->disableOriginalConstructor()
-        ->getMock();
-      $this->drupalAdaptor = $this->getMockBuilder('\Drupal\s3filesystem\AWS\S3\DrupalAdaptor')
-        ->setConstructorArgs(array($s3Client))
-        ->setMethods(array(
-          'readCache',
-          'writeCache',
-          'deleteCache',
-        ))
-        ->getMock();
+      $this->testConfig = S3ConfigFactory::buildConfig($configOverride);
+      $this->configFactory = $this->getConfigFactoryStub($this->testConfig);
 
-      // the flattened config array
-      $testConfig = array(
-        's3filesystem.settings' => array(
-          's3.bucket'                  => 'test-bucket',
-          's3.keyprefix'               => 'testprefix',
-          's3.region'                  => 'eu-west-1',
-          's3.force_https'             => FALSE,
-          's3.ignore_cache'            => FALSE,
-          's3.refresh_prefix'          => '',
-          's3.custom_host.enabled'     => FALSE,
-          's3.custom_host.hostname'    => NULL,
-          's3.custom_cdn.enabled'      => FALSE,
-          's3.custom_cdn.domain'       => 'assets.domain.co.uk',
-          's3.custom_cdn.http_only'    => TRUE,
-          's3.presigned_urls'          => array(),
-          's3.saveas'                  => array(),
-          's3.torrents'                => array(),
-          's3.custom_s3_host.enabled'  => FALSE,
-          's3.custom_s3_host.hostname' => '',
-          'aws.use_instance_profile'   => FALSE,
-          'aws.default_cache_config'   => '/tmp',
-          'aws.access_key'             => 'INVALID',
-          'aws.secret_key'             => 'INVALID',
-          'aws.proxy.enabled'          => FALSE,
-          'aws.proxy.host'             => 'proxy:8080',
-          'aws.proxy.connect_timeout'  => 10,
-          'aws.proxy.timeout'          => 20,
-        )
-      );
-
-      if ($configClosure instanceof \Closure) {
-        $configClosure($testConfig);
+      if (!$this->s3Client instanceof S3Client) {
+        $this->setupS3Client();
       }
 
-      $config = $this->getConfigFactoryStub($testConfig)
-        ->get('s3filesystem.settings');
-
-      $s3Client->expects($this->any())
-        ->method('getObjectUrl')
-        ->will($this->returnCallback(function ($bucket, $key, $expires = NULL, array $args = array()) {
-          return 'region.amazonaws.com/' . $key;
-        }));
-
-      $db = $this->getMockBuilder('\Drupal\Core\Database\Connection')
-        ->disableOriginalConstructor()
-        ->getMock();
+      $this->drupalAdaptor = new DrupalAdaptor(
+        $this->s3Client,
+        $this->configFactory
+      );
 
       /** @var $wrapper S3StreamWrapper */
       $wrapper->setUp(
         $this->drupalAdaptor,
-        $config,
-        new NullLogger(),
-        $db
+        NULL,
+        new NullLogger()
       );
 
       return $wrapper;
@@ -171,12 +196,22 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 
     public function testStreamLock() {
       $wrapper = $this->getWrapper();
-      $this->assertFalse($wrapper->stream_lock(null));
+      $this->assertFalse($wrapper->stream_lock(NULL));
     }
 
     public function testStreamMetaData() {
       $wrapper = $this->getWrapper();
-      $this->assertTrue($wrapper->stream_metadata(null, null, null));
+      $this->assertTrue($wrapper->stream_metadata(NULL, NULL, NULL));
+    }
+
+    public function testStreamSetOption() {
+      $wrapper = $this->getWrapper();
+      $this->assertFalse($wrapper->stream_set_option(NULL, NULL, NULL));
+    }
+
+    public function testStreamTruncate() {
+      $wrapper = $this->getWrapper();
+      $this->assertFalse($wrapper->stream_truncate(NULL));
     }
 
     public function testExternalUrl() {
@@ -188,10 +223,13 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
     }
 
     public function testExternalUrlWithCustomCDN() {
-      $wrapper = $this->getWrapper(NULL, function (&$config) {
-        $config['s3filesystem.settings']['s3.custom_cdn.enabled']  = TRUE;
-        $config['s3filesystem.settings']['s3.custom_cdn.hostname'] = 'assets.domain.co.uk';
-      });
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.custom_cdn.enabled' => TRUE,
+          's3.custom_cdn.hostname' => 'assets.domain.co.uk',
+        ]
+      );
 
       $requestStack = new RequestStack();
       $requestStack->push(new Request());
@@ -199,18 +237,69 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
 
       $wrapper->setUri('s3://test.png');
       $url = $wrapper->getExternalUrl();
-      $this->assertEquals('http://assets.domain.co.uk/testprefix/test.png', $url);
+      $this->assertEquals(
+        'http://assets.domain.co.uk/testprefix/test.png',
+        $url
+      );
+    }
+
+    public function testExternalUrlWithInvalidCustomCDN() {
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.custom_cdn.enabled' => TRUE,
+          's3.custom_cdn.hostname' => 'wtf://hello',
+        ]
+      );
+
+      $requestStack = new RequestStack();
+      $requestStack->push(new Request());
+      $this->setMockContainerService('request_stack', $requestStack);
+
+      $wrapper->setUri('s3://test.png');
+      $url = $wrapper->getExternalUrl();
+      $this->assertEquals(
+        'http://assets.domain.co.uk/testprefix/test.png',
+        $url
+      );
+    }
+
+    public function testExternalUrlWithRelativeCustomCDN() {
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.custom_cdn.enabled' => TRUE,
+          's3.custom_cdn.hostname' => 'wtf://',
+        ]
+      );
+
+      $requestStack = new RequestStack();
+      $requestStack->push(new Request());
+      $this->setMockContainerService('request_stack', $requestStack);
+
+      $wrapper->setUri('s3://test.png');
+      $url = $wrapper->getExternalUrl();
+      $this->assertEquals(
+        'http://assets.domain.co.uk/testprefix/test.png',
+        $url
+      );
     }
 
     public function testExternalUrlWithCustomCDNAndQueryString() {
-      $wrapper = $this->getWrapper(NULL, function (&$config) {
-        $config['s3filesystem.settings']['s3.custom_cdn.enabled']  = TRUE;
-        $config['s3filesystem.settings']['s3.custom_cdn.hostname'] = 'assets.domain.co.uk';
-      });
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.custom_cdn.enabled' => TRUE,
+          's3.custom_cdn.hostname' => 'assets.domain.co.uk',
+        ]
+      );
 
       $wrapper->setUri('s3://test.png?query_string');
       $url = $wrapper->getExternalUrl();
-      $this->assertEquals('region.amazonaws.com/testprefix/test.png?query_string', $url);
+      $this->assertEquals(
+        'region.amazonaws.com/testprefix/test.png?query_string',
+        $url
+      );
     }
 
     public function testExternalUrlImageStyle() {
@@ -225,62 +314,90 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
       $this->getMock('file_exists');
       $urlGenerator->expects($this->once())
         ->method('generateFromRoute')
-        ->will($this->returnCallback(function ($route, $params) use ($phpunit) {
-          $phpunit->assertEquals('image.style_s3', $route);
-          $phpunit->assertArrayHasKey('image_style', $params);
-          $phpunit->assertArrayHasKey('file', $params);
+        ->will(
+          $this->returnCallback(
+            function ($route, $params) use ($phpunit) {
+              $phpunit->assertEquals('image.style_s3', $route);
+              $phpunit->assertArrayHasKey('image_style', $params);
+              $phpunit->assertArrayHasKey('file', $params);
 
-          return '/s3/files/' . $params['image_style'] . '?file=' . $params['path'];
-        }));
+              return '/s3/files/' . $params['image_style'] . '?file=' . $params['file'];
+            }
+          )
+        );
       $this->setMockContainerService('url_generator', $urlGenerator);
 
       $wrapper->setUri('s3://styles/large/s3/test.png');
       $url = $wrapper->getExternalUrl();
-      $this->assertEquals('/s3/files/large/s3/test.png', $url);
+      $this->assertEquals('/s3/files/large?file=test.png', $url);
     }
 
     public function testExternalUrlWithTorrents() {
-      $wrapper = $this->getWrapper(NULL, function (&$config) {
-        $config['s3filesystem.settings']['s3.torrents'] = array(
-          'torrent/'
-        );
-      });
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.torrents' => [
+            'torrent/'
+          ],
+        ]
+      );
 
       $wrapper->setUri('s3://torrent/test.png');
       $url = $wrapper->getExternalUrl();
-      $this->assertEquals('region.amazonaws.com/testprefix/torrent/test.png?torrent', $url);
+      $this->assertEquals(
+        'region.amazonaws.com/testprefix/torrent/test.png?torrent',
+        $url
+      );
     }
 
     public function testExternalUrlWithSaveAs() {
-      $wrapper = $this->getWrapper(NULL, function (&$config) {
-        $config['s3filesystem.settings']['s3.saveas'] = array(
-          'saveas/'
-        );
-
-        $config['s3filesystem.settings']['s3.torrents'] = array(
-          'torrent/'
-        );
-      });
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.saveas' => [
+            'saveas/'
+          ],
+          's3.torrents' => [
+            'torrent/'
+          ],
+        ]
+      );
 
       $wrapper->setUri('s3://saveas/test.png');
       $url = $wrapper->getExternalUrl();
-      $this->assertEquals('region.amazonaws.com/testprefix/saveas/test.png', $url);
+      $this->assertEquals(
+        'region.amazonaws.com/testprefix/saveas/test.png',
+        $url
+      );
     }
 
     public function testExternalUrlWithPresignedUrl() {
-      $wrapper = $this->getWrapper(NULL, function (&$config) {
-        $config['s3filesystem.settings']['s3.presigned_urls'] = array(
-          'presigned_url/'
-        );
-
-        $config['s3filesystem.settings']['s3.torrents'] = array(
-          'torrent/'
-        );
-      });
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.presigned_urls' => [
+            'presigned_url/',
+            'presigned_url_timeout/|30'
+          ],
+          's3.torrents' => [
+            'torrent/'
+          ],
+        ]
+      );
 
       $wrapper->setUri('s3://presigned_url/test.png');
       $url = $wrapper->getExternalUrl();
-      $this->assertEquals('region.amazonaws.com/testprefix/presigned_url/test.png', $url);
+      $this->assertEquals(
+        'region.amazonaws.com/testprefix/presigned_url/test.png',
+        $url
+      );
+
+      $wrapper->setUri('s3://presigned_url_timeout/test.png');
+      $url = $wrapper->getExternalUrl();
+      $this->assertEquals(
+        'region.amazonaws.com/testprefix/presigned_url_timeout/test.png',
+        $url
+      );
     }
 
     public function testRealpath() {
@@ -313,77 +430,146 @@ namespace Drupal\Tests\s3filesystem\Unit\StreamWrapper {
       $this->assertEquals('s3://', $dirName);
     }
 
-//    public function testUnlinkSuccess() {
-//      $wrapper = $this->getWrapper();
-//
-//      $this->drupalAdaptor->expects($this->once)
-//        ->method('deleteCache')
-//        ->will($this->returnValue(true));
-//
-//      $wrapper->unlink('s3://unlink.png');
-//    }
-//
-//    public function testUnlinkFail() {
-//      $wrapper = $this->getWrapper();
-//
-//      $this->drupalAdaptor->expects($this->once())
-//        ->method('deleteCache')
-//        ->will($this->returnValue(true));
-//
-//      $wrapper->unlink('s3://unlink.png');
-//    }
+    public function testDirOpen() {
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.keyprefix' => 'prefix',
+          's3.bucket' => 'testbucket',
+        ]
+      );
 
+      $wrapper->dir_opendir('s3://unlink.png', NULL);
 
-    public function testUrlStatFileCacheHit() {
-      $modified = time();
-      $wrapper  = $this->getWrapper();
-      $meta     = new ObjectMetaData('s3://cache/hit.png', array(
-        'ContentLength' => 1337,
-        'Directory'     => FALSE,
-        'LastModified'  => $modified,
-      ));
-      $this->drupalAdaptor->expects($this->once())
-        ->method('readCache')
-        ->will($this->returnValue($meta));
-
-      $stat = $wrapper->url_stat('s3://cache/hit.png', 0);
-
-      $this->assertTrue(is_array($stat));
-
-      $this->assertArrayHasKey('size', $stat);
-      $this->assertEquals(1337, $stat['size']);
-
-      $this->assertArrayHasKey('mtime', $stat);
-      $this->assertEquals($modified, $stat['mtime']);
-
-      $this->assertArrayHasKey('mode', $stat);
-      $this->assertEquals(33279, $stat['mode']);
+      $this->assertEquals(
+        's3://unlink.png',
+        $wrapper->getUri()
+      );
     }
 
-    public function testUrlStatDirCacheHit() {
-      $modified = time();
-      $wrapper  = $this->getWrapper();
-      $meta     = new ObjectMetaData('s3://cache/dir', array(
-        'ContentLength' => 0,
-        'Directory'     => TRUE,
-        'LastModified'  => $modified,
-      ));
-      $this->drupalAdaptor->expects($this->once())
-        ->method('readCache')
-        ->will($this->returnValue($meta));
+    public function testRmDir() {
+      $this->setupS3Client(['headObject']);
 
-      $stat = $wrapper->url_stat('s3://cache/dir', 0);
+      $this->s3Client->expects($this->any())
+        ->method('headObject')
+        ->willReturn(new Result());
 
-      $this->assertTrue(is_array($stat));
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.keyprefix' => 'prefix',
+          's3.bucket' => 'testbucket',
+        ]
+      );
 
-      $this->assertArrayHasKey('size', $stat);
-      $this->assertEquals(0, $stat['size']);
+      $wrapper->rmdir('s3://unlink.png', NULL);
 
-      $this->assertArrayHasKey('mtime', $stat);
-      $this->assertEquals(0, $stat['mtime']);
+      $this->assertEquals(
+        's3://unlink.png',
+        $wrapper->getUri()
+      );
+    }
 
-      $this->assertArrayHasKey('mode', $stat);
-      $this->assertEquals(16895, $stat['mode']);
+    public function testMkDir() {
+      $this->setupS3Client(['doesObjectExist', 'putObject']);
+
+      $this->s3Client->expects($this->once())
+        ->method('doesObjectExist')
+        ->willReturn(false);
+      $this->s3Client->expects($this->once())
+        ->method('putObject');
+
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.keyprefix' => 'prefix',
+          's3.bucket' => 'testbucket',
+        ]
+      );
+
+      $wrapper->mkdir('s3://new/link.png', NULL, NULL);
+
+      $this->assertEquals(
+        's3://new/link.png',
+        $wrapper->getUri()
+      );
+    }
+
+    public function testStreamOpen() {
+      $this->setupS3Client(['execute']);
+
+      $this->s3Client->expects($this->once())
+        ->method('execute')
+        ->willReturnCallback(
+          function (CommandInterface $command) {
+            return [
+              'ContentLength' => 0,
+              'Body' => \GuzzleHttp\Psr7\stream_for(),
+            ];
+          }
+        );
+
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.keyprefix' => 'prefix',
+          's3.bucket' => 'testbucket',
+        ]
+      );
+
+      $nullRef = NULL;
+      $wrapper->stream_open('s3://unlink.png', 'r', NULL, $nullRef);
+
+      $this->assertEquals(
+        's3://unlink.png',
+        $wrapper->getUri()
+      );
+    }
+
+    public function testUrlStat() {
+      $this->setupS3Client(['headObject']);
+
+      $this->s3Client->expects($this->any())
+        ->method('headObject')
+        ->willReturn(new Result());
+
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.keyprefix' => 'prefix',
+          's3.bucket' => 'testbucket',
+        ]
+      );
+
+      $wrapper->url_stat('s3://unlink.png', NULL);
+
+      $this->assertEquals(
+        's3://unlink.png',
+        $wrapper->getUri()
+      );
+    }
+
+    public function testUnlink() {
+      $this->setupS3Client(['deleteObject']);
+
+      $this->s3Client->expects($this->any())
+        ->method('deleteObject')
+        ->willReturn(new Result());
+
+      $wrapper = $this->getWrapper(
+        NULL,
+        [
+          's3.keyprefix' => 'prefix',
+          's3.bucket' => 'testbucket',
+        ]
+      );
+
+      $wrapper->unlink('s3://unlink.png');
+
+      $this->assertEquals(
+        's3://unlink.png',
+        $wrapper->getUri()
+      );
     }
   }
 }

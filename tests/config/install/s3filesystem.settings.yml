@@ -1,0 +1,35 @@
+aws:
+  use_instance_profile: true
+  default_cache_config: /tmp
+
+  # Set keys
+  access_key:   ''            # Put your AWS Access Key here
+  secret_key:   ''            # Put your AWS Secret Key here
+
+  proxy:
+    enabled:          false
+    host:             ~
+    timeout:          20
+    connect_timeout:  10
+
+s3:
+  bucket:         'testbucket'
+  keyprefix:      'testprefix'
+  region:         'eu-west1'
+
+  force_https:    false
+  ignore_cache:   false
+  refresh_prefix: ''
+
+  custom_host:
+    enabled:      false
+    hostname:     ~
+
+  custom_cdn:
+    enabled:      true
+    http_only:    false
+    domain:       ''
+
+  presigned_urls: []
+  saveas:         []
+  torrents:       []
